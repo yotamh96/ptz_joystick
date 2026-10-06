@@ -74,6 +74,40 @@ class SenderTest(unittest.TestCase):
         self.assertEqual(cam.calls[-1], PanTilt(0, 0))
         self.assertIn("Preset(number=9)", logs.output[0])
 
+    def test_refused_command_does_not_block_stop(self):
+        class NoPresets(FakeCamera):          # e.g. camera answers 500 to poscall
+            def send(self, cmd):
+                return super().send(cmd) and not isinstance(cmd, Preset)
+
+        cam = NoPresets()
+        s = CommandSender(cam, backoff=0.01)
+        s.send(PanTilt(24, 0))
+        self.assertTrue(wait_idle(s))
+        s.send(Preset(3))
+        s.send(PanTilt(0, 0))
+        deadline = time.time() + 1
+        while PanTilt(0, 0) not in cam.calls and time.time() < deadline:
+            time.sleep(0.01)
+        self.assertIn(PanTilt(0, 0), cam.calls)
+
+    def test_refused_preset_dropped_after_3_tries(self):
+        cam = FakeCamera(fail_first=10**6)
+        s = CommandSender(cam, backoff=0.01)
+        with self.assertLogs("ptz_joystick.sender", "WARNING") as logs:
+            s.send(Preset(3))
+            self.assertTrue(wait_idle(s, timeout=1))
+        self.assertEqual(cam.calls, [Preset(3)] * 3)
+        self.assertIn("Preset(number=3)", logs.output[-1])
+
+    def test_refused_moves_keep_retrying_with_backoff(self):
+        cam = FakeCamera(fail_first=10**6)
+        s = CommandSender(cam, backoff=0.05)
+        s.send(PanTilt(5, 0))
+        time.sleep(0.3)
+        self.assertGreater(len(cam.calls), 3)          # never gives up on a move (it is current state)
+        self.assertLess(len(cam.calls), 12)            # but backs off instead of hammering the camera
+        self.assertEqual(s.pending, {PanTilt: PanTilt(5, 0)})
+
     def test_drain_gives_up_on_dead_camera(self):
         s = CommandSender(FakeCamera(fail_first=10**6), backoff=0.01)
         self.assertFalse(s.drain_with([PanTilt(0, 0)], timeout=0.2))
