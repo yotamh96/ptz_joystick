@@ -19,17 +19,21 @@ class CommandSender:
         self.camera, self.backoff = camera, backoff
         self.pending = {}           # command type -> latest command
         self.tries = {}             # command -> refusals so far (sender thread only)
+        self.closed = False         # set by drain_with: nothing may follow the final stops
         self.cv = threading.Condition()
         threading.Thread(target=self._run, daemon=True).start()
 
     def send(self, cmd: Command):
         with self.cv:
-            self.pending[type(cmd)] = cmd
-            self.cv.notify_all()
+            if not self.closed:
+                self.pending[type(cmd)] = cmd
+                self.cv.notify_all()
 
     def drain_with(self, stops: list[Command], timeout=3.0) -> bool:
-        """Drop everything pending, send `stops`, wait for the camera to take them. -> True if it did."""
+        """Final: drop everything pending, send `stops`, ignore later send()s, wait for the camera to take
+        the stops. -> True if it did."""
         with self.cv:
+            self.closed = True
             self.pending = {type(c): c for c in stops}
             self.cv.notify_all()
             return self.cv.wait_for(lambda: not self.pending, timeout)

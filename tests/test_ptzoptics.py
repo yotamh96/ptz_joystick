@@ -1,6 +1,10 @@
 import unittest
+from types import SimpleNamespace
+from unittest import mock
 
-from ptz_joystick.cameras.ptzoptics import to_query
+import requests
+
+from ptz_joystick.cameras.ptzoptics import PtzOpticsCamera, to_query
 from ptz_joystick.commands import PanTilt, Preset, Zoom
 
 
@@ -19,6 +23,40 @@ class ToQueryTest(unittest.TestCase):
 
     def test_preset(self):
         self.assertEqual(to_query(Preset(4)), "ptzcmd&poscall&4")
+
+
+def camera_answering(*answers):
+    """Camera whose HTTP replies are the given status codes / exceptions, in order."""
+    cam = PtzOpticsCamera("http://cam", "admin", "pw")
+    cam.session.get = mock.Mock(side_effect=[a if isinstance(a, Exception) else SimpleNamespace(status_code=a)
+                                             for a in answers])
+    return cam
+
+
+class SendTest(unittest.TestCase):
+    def test_outage_logs_once_then_recovery(self):
+        down = requests.ConnectTimeout("timed out")
+        cam = camera_answering(down, down, down, 200)
+        with self.assertLogs("ptz_joystick.cameras.ptzoptics", "INFO") as logs:
+            results = [cam.send(PanTilt(0, 0)) for _ in range(4)]
+        self.assertEqual(results, [False, False, False, True])
+        self.assertEqual(len(logs.output), 2, logs.output)
+        self.assertIn("unreachable", logs.output[0])
+        self.assertIn("back", logs.output[1])
+
+    def test_wrong_password_says_so(self):
+        cam = camera_answering(401)
+        with self.assertLogs("ptz_joystick.cameras.ptzoptics", "WARNING") as logs:
+            self.assertFalse(cam.send(PanTilt(0, 0)))
+        self.assertIn("PTZ_PASSWORD", logs.output[0])
+
+    def test_new_kind_of_failure_is_logged(self):
+        cam = camera_answering(requests.ConnectTimeout("x"), 500)
+        with self.assertLogs("ptz_joystick.cameras.ptzoptics", "WARNING") as logs:
+            cam.send(PanTilt(0, 0))
+            cam.send(PanTilt(0, 0))
+        self.assertEqual(len(logs.output), 2)
+        self.assertIn("500", logs.output[1])
 
 
 if __name__ == "__main__":

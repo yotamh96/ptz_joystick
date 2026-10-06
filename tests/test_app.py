@@ -1,9 +1,11 @@
 import logging
 import os
+import runpy
 import tempfile
 import unittest
+from unittest import mock
 
-from ptz_joystick.app import run, setup_logging
+from ptz_joystick.app import check_camera, run, setup_logging
 from ptz_joystick.cameras import Camera
 from ptz_joystick.cameras.ptzoptics import PtzOpticsCamera
 from ptz_joystick.commands import PanTilt, Zoom
@@ -69,6 +71,37 @@ class RunTest(unittest.TestCase):
         self.assertTrue(any("'X': 0.5" in line for line in logs.output))
 
 
+class CheckCameraTest(unittest.TestCase):
+    def test_camera_that_refuses_stops_startup(self):
+        class Refusing(RecordingCamera):
+            def send(self, cmd):
+                super().send(cmd)
+                return False
+
+        cam = Refusing()
+        with self.assertRaisesRegex(SystemExit, "Camera"):
+            check_camera(cam, "http://cam")
+        self.assertEqual(cam.calls, [PanTilt(0, 0)])     # probe is a harmless stop
+
+    def test_camera_that_answers_passes(self):
+        check_camera(RecordingCamera(), "http://cam")
+
+
+class CrashTest(unittest.TestCase):
+    def test_crash_reason_goes_to_log(self):
+        with mock.patch("ptz_joystick.app.main", side_effect=RuntimeError("boom")),                 self.assertLogs("ptz_joystick", "CRITICAL") as logs, self.assertRaises(SystemExit):
+            runpy.run_module("ptz_joystick", run_name="__main__")
+        self.assertIn("boom", logs.output[0])
+
+    def test_ctrl_c_and_clean_exit_stay_quiet(self):
+        for exc in (KeyboardInterrupt(), SystemExit("No controller found.")):
+            with self.subTest(exc=exc), mock.patch("ptz_joystick.app.main", side_effect=exc),                     self.assertNoLogs("ptz_joystick", "CRITICAL"):
+                try:
+                    runpy.run_module("ptz_joystick", run_name="__main__")
+                except SystemExit as e:
+                    self.assertEqual(str(e), "No controller found.")
+
+
 class SetupLoggingTest(unittest.TestCase):
     def test_writes_timestamped_lines_to_log_file(self):
         with tempfile.TemporaryDirectory() as d:
@@ -82,6 +115,14 @@ class SetupLoggingTest(unittest.TestCase):
                     logging.getLogger().removeHandler(h)
             line = open(path, encoding="utf-8").read()
         self.assertRegex(line, r"^\d\d:\d\d:\d\d INFO +hello camera")
+
+    def test_unwritable_log_file_falls_back_to_terminal(self):
+        with tempfile.TemporaryDirectory() as d:          # a folder can't be opened as a log file
+            with self.assertLogs("ptz_joystick.app", "WARNING") as logs:
+                setup_logging(Settings(log_file=d))
+            for h in logging.getLogger().handlers[:]:
+                logging.getLogger().removeHandler(h)
+        self.assertIn("terminal only", logs.output[0])
 
     def test_no_file_when_log_file_empty(self):
         setup_logging(Settings(log_file=""))

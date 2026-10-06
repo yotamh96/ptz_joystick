@@ -3,6 +3,7 @@ import logging
 import time
 
 from . import config
+from .cameras import Camera
 from .cameras.ptzoptics import PtzOpticsCamera
 from .commands import PanTilt, Zoom
 from .config import Settings
@@ -10,30 +11,59 @@ from .controllers import Controller
 from .controllers.winmm import discover
 from .mapping import Mapper
 from .sender import CommandSender
+from .winconsole import on_console_close
 
 log = logging.getLogger(__name__)
 
 
 def setup_logging(s: Settings):
     """Terminal always; plus s.log_file if set. debug=True adds per-command and per-reading lines."""
-    handlers = [logging.StreamHandler()]
+    handlers, file_error = [logging.StreamHandler()], None
     if s.log_file:
-        handlers.append(logging.FileHandler(s.log_file, encoding="utf-8"))
+        try:
+            handlers.append(logging.FileHandler(s.log_file, encoding="utf-8"))
+        except OSError as e:            # locked by another program, read-only folder, ...
+            file_error = e
     logging.basicConfig(level=logging.DEBUG if s.debug else logging.INFO, handlers=handlers, force=True,
                         format="%(asctime)s %(levelname)-7s %(message)s", datefmt="%H:%M:%S")
     logging.getLogger("urllib3").setLevel(logging.WARNING)   # requests' own chatter at DEBUG
+    if file_error:
+        log.warning("Can't write log file %s (%s): terminal only.", s.log_file, file_error)
+
+
+def check_camera(camera: Camera, host: str):
+    """Send a harmless stop, so a wrong address or password fails now instead of mid-session."""
+    if not camera.send(PanTilt(0, 0)):
+        raise SystemExit(f"Camera at {host} did not accept a stop command (reason logged above). "
+                         "Check host in config.py, the network, and PTZ_PASSWORD.")
+
+
+def stop_camera(sender: CommandSender):
+    if sender.drain_with([PanTilt(0, 0), Zoom(0)]):
+        log.info("Camera stopped.")
+    else:
+        log.error("Camera did not confirm stop.")
 
 
 def main():
     s = config.load()
     setup_logging(s)
+    camera = PtzOpticsCamera(s.host, s.user, s.password, s.timeout)
+    check_camera(camera, s.host)
     controller = discover()
     state = controller.read()
     missing = [a for a in (s.pan_axis, s.tilt_axis, s.zoom_axis) if state and a not in state.axes]
     if missing:
         raise SystemExit(f"Controller has no axis {missing} (has {list(state.axes)}). Fix the axes in config.py.")
+    sender = CommandSender(camera)
+
+    def console_closing():
+        log.info("Console closing.")
+        stop_camera(sender)
+
+    on_console_close(console_closing)
     log.info("Driving camera %s. Ctrl+C to quit.", s.host)
-    run(s, controller, CommandSender(PtzOpticsCamera(s.host, s.user, s.password, s.timeout)))
+    run(s, controller, sender)
 
 
 def run(s: Settings, controller: Controller, sender: CommandSender, period=0.05):
@@ -54,7 +84,4 @@ def run(s: Settings, controller: Controller, sender: CommandSender, period=0.05)
                 sender.send(cmd)
             time.sleep(period)
     finally:                            # never leave the camera moving
-        if sender.drain_with([PanTilt(0, 0), Zoom(0)]):
-            log.info("Camera stopped.")
-        else:
-            log.error("Camera did not confirm stop.")
+        stop_camera(sender)

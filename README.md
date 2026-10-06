@@ -23,8 +23,9 @@ From the folder that **contains** `ptz_joystick\` (for example, `Desktop`):
 python -m ptz_joystick
 ```
 
-1. It lists the joystick IDs it found and asks you to move the left stick. It uses the controller that moves.
-2. It drives the camera until you press **Ctrl+C**. Ctrl+C always sends a stop to the camera before exiting.
+1. It sends the camera a stop command to check the address and password. If the camera doesn't accept it, the tool exits with the reason.
+2. It lists the joystick IDs it found and asks you to move the left stick. It uses the controller that moves.
+3. It drives the camera until you press **Ctrl+C** or close the window. Both send a stop to the camera before exiting.
 
 ## Controls
 
@@ -34,6 +35,8 @@ python -m ptz_joystick
 | Right stick up / down | Zoom in / out |
 | Buttons 1–4 | Recall presets 1–4 |
 | Controller unplugged | Camera stops. Plug it back in to carry on |
+| Ctrl+C, closing the window, logoff, shutdown | Camera stops |
+| Crash | Camera stops. The reason and traceback go to the log file |
 
 ## Settings
 
@@ -63,7 +66,11 @@ Every line has a timestamp and goes to the terminal and to `ptz_joystick.log`:
 14:05:40 WARNING Controller lost, camera stopped. Waiting for it...
 14:05:43 INFO    Controller back.
 14:07:02 WARNING camera unreachable: ...
+14:07:30 INFO    camera back (was: unreachable)
 ```
+
+A camera outage logs one warning when it starts and one line when the camera is back, not one line per retry.
+While the camera is down, moves keep retrying. A preset the camera refuses 3 times is dropped, so it can't fire minutes later.
 
 To see what happened during a session, check the file afterwards. Set `debug=True` for the full detail.
 
@@ -78,8 +85,11 @@ To see what happened during a session, check the file afterwards. Set `debug=Tru
 | Camera never reaches full speed | Set `debug=True` and push the stick to its edge. Set `full_speed_at` a little below the highest value you see |
 | Full speed comes too early in the push | Raise `full_speed_at` (max `1.0`) |
 | Up/down is backwards | Toggle `invert_tilt` or `invert_zoom` |
-| `camera answered 401` | Wrong `user` or `PTZ_PASSWORD` |
+| `Camera at ... did not accept a stop command` | Startup check failed. The line above it gives the reason |
+| `camera rejected the login (401)` | Wrong `user` or `PTZ_PASSWORD` |
 | `camera unreachable` | Check `host`, the network, and that the camera's web page opens in a browser |
+| `config.py: ...` | A setting has an invalid value. The message names it and the allowed range |
+| `Can't write log file` | Another program has the log open, or the folder is read-only. The tool keeps running and logs to the terminal only |
 
 ## Tests
 
@@ -100,6 +110,7 @@ config.py          Settings (every knob above)
 commands.py        PanTilt, Zoom, Preset: camera-agnostic, signed speeds, 0 = stop
 mapping.py         pure logic: stick → commands (deadzone, scaling, ignores small stick jitter, button presses)
 sender.py          background thread: latest command per type wins, retries until the camera accepts
+winconsole.py      Windows console close / logoff / shutdown → stop the camera
 controllers/       Controller port (__init__.py) + winmm.py adapter
 cameras/           Camera port (__init__.py) + ptzoptics.py adapter
 tests/             unit tests with fake controller / camera

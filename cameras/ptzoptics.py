@@ -35,13 +35,26 @@ class PtzOpticsCamera:
         self.timeout = timeout
         self.session = requests.Session()
         self.session.auth = HTTPDigestAuth(user, password)
+        self.failing = None     # kind of the current failure, so an outage logs once, not every retry
 
     def send(self, cmd: Command) -> bool:
         try:
             r = self.session.get(self.url + to_query(cmd), timeout=self.timeout)
-            if r.status_code == 200:
-                return True
-            log.warning("camera answered %s to %s", r.status_code, cmd)
         except requests.RequestException as e:
-            log.warning("camera unreachable: %s", e)
+            return self._failed("unreachable", f"camera unreachable: {e}")
+        if r.status_code == 200:
+            if self.failing:
+                log.info("camera back (was: %s)", self.failing)
+                self.failing = None
+            return True
+        if r.status_code == 401:
+            return self._failed(401, "camera rejected the login (401): check user in config.py and PTZ_PASSWORD")
+        return self._failed(r.status_code, f"camera answered {r.status_code} to {cmd}")
+
+    def _failed(self, kind, msg):
+        if kind != self.failing:
+            log.warning(msg)
+            self.failing = kind
+        else:
+            log.debug(msg)
         return False

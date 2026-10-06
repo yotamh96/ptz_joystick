@@ -2,7 +2,9 @@
 import os
 from dataclasses import dataclass, field
 
-from .commands import Preset
+from .commands import Command, Preset
+
+AXES = "XYZRUV"
 
 
 @dataclass(frozen=True)
@@ -29,9 +31,31 @@ class Settings:
     debug: bool = False                 # True = log axis values and buttons (DEBUG level)
     log_file: str = "ptz_joystick.log"  # appended next to where you run it; "" = terminal only
 
+    def __post_init__(self):
+        """Catch bad values at startup, not on the first stick push."""
+        def check(ok, msg):
+            if not ok:
+                raise ValueError(msg)
+
+        check(0 <= self.deadzone < self.full_speed_at <= 1,
+              f"need 0 <= deadzone < full_speed_at <= 1, got deadzone={self.deadzone} full_speed_at={self.full_speed_at}")
+        for name in ("pan_axis", "tilt_axis", "zoom_axis"):
+            v = getattr(self, name)
+            check(isinstance(v, str) and len(v) == 1 and v in AXES, f"{name} must be one of {' '.join(AXES)}, got {v!r}")
+        for name in ("pan_max", "tilt_max", "zoom_max"):
+            v = getattr(self, name)
+            check(isinstance(v, int) and v >= 1, f"{name} must be a whole number >= 1, got {v!r}")
+        check(self.timeout > 0, f"timeout must be > 0 seconds, got {self.timeout!r}")
+        check(self.host.startswith(("http://", "https://")), f"host must start with http://, got {self.host!r}")
+        bad = {b: c for b, c in self.buttons.items() if not (isinstance(b, int) and 0 <= b < 32 and isinstance(c, Command))}
+        check(not bad, f"buttons must map a button index 0-31 to a command from commands.py, bad: {bad}")
+
 
 def load() -> Settings:
     password = os.environ.get("PTZ_PASSWORD")
     if not password:
         raise SystemExit('Set the camera password first:  setx PTZ_PASSWORD "..."  then open a new terminal.')
-    return Settings(password=password)
+    try:
+        return Settings(password=password)
+    except ValueError as e:
+        raise SystemExit(f"config.py: {e}") from None

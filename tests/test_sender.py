@@ -108,6 +108,14 @@ class SenderTest(unittest.TestCase):
         self.assertLess(len(cam.calls), 12)            # but backs off instead of hammering the camera
         self.assertEqual(s.pending, {PanTilt: PanTilt(5, 0)})
 
+    def test_nothing_sent_after_drain(self):
+        cam = FakeCamera()
+        s = CommandSender(cam, backoff=0.01)
+        self.assertTrue(s.drain_with([PanTilt(0, 0)], timeout=1))
+        s.send(PanTilt(24, 0))                         # main loop still running while the console closes
+        time.sleep(0.05)
+        self.assertEqual(cam.calls, [PanTilt(0, 0)])
+
     def test_drain_gives_up_on_dead_camera(self):
         s = CommandSender(FakeCamera(fail_first=10**6), backoff=0.01)
         self.assertFalse(s.drain_with([PanTilt(0, 0)], timeout=0.2))
