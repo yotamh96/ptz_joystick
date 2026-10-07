@@ -6,10 +6,10 @@ The controller is read through the Windows joystick API (the same data `joy.cpl`
 
 ## Setup
 
-Needs Python 3.11+ (developed on 3.14).
+Needs Python 3.11+ (developed on 3.14). From the repo folder (the one with this README):
 
 ```powershell
-pip install -r ptz_joystick\requirements.txt
+pip install -r requirements.txt
 setx PTZ_PASSWORD "your-camera-password"
 ```
 
@@ -29,7 +29,7 @@ It never downloads or replaces anything itself. To update, close the tool, downl
 
 ## Run
 
-From the folder that **contains** `ptz_joystick\` (for example, `Desktop`):
+From the repo folder:
 
 ```powershell
 python -m ptz_joystick
@@ -52,7 +52,7 @@ python -m ptz_joystick
 
 ## Settings
 
-Settings live in `ptz_joystick.toml`: next to `ptz_joystick.exe`, or inside the `ptz_joystick\` folder when run with Python. If it's missing, the first run writes it with every setting, its default and a comment. Edit it, save, restart.
+Settings live in `ptz_joystick.toml`: next to `ptz_joystick.exe`, or next to the code (`ptz_joystick\ptz_joystick.toml` in the repo) when run with Python. If it's missing, the first run writes it with every setting, its default and a comment. Edit it, save, restart.
 
 To use a different file: `python -m ptz_joystick --config D:\cams\studio2.toml` (same flag for the exe).
 
@@ -112,8 +112,10 @@ To see what happened during a session, check the file afterwards. Set `debug = t
 
 ## Tests
 
+From the repo folder:
+
 ```powershell
-python -m unittest discover ptz_joystick\tests
+python -m unittest discover tests
 ```
 
 These need no camera and no controller. Fakes stand in for both.
@@ -122,7 +124,7 @@ Lint (CI runs the same check):
 
 ```powershell
 pip install ruff==0.16.10
-ruff check ptz_joystick
+ruff check .
 ```
 
 ## Releases
@@ -140,7 +142,7 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-The tag's run attaches the signed `ptz_joystick.exe` to a GitHub Release named after the tag. The tag is baked into the exe as its version (`_version.py`), which is what the update check compares. Tags must look like `v1.2.3`, or the check ignores them.
+The tag's run attaches the signed `ptz_joystick.exe` to a GitHub Release named after the tag. The tag is baked into the exe as its version (`ptz_joystick/_version.py`), which is what the update check compares. Tags must look like `v1.2.3`, or the check ignores them.
 
 ### Signing certificate (one-time setup)
 
@@ -170,19 +172,22 @@ SmartScreen judges downloaded files by reputation, so a browser download may sti
 Ports and adapters. The logic never touches hardware, so you can change it and test it without a camera.
 
 ```
-__main__.py        python -m ptz_joystick → app.main()
-app.py             composition root: builds the real adapters, runs the loop, logging setup
-config.py          Settings (defaults + validation), ptz_joystick.toml loading and template
-commands.py        PanTilt, Zoom, Preset: camera-agnostic, signed speeds, 0 = stop
-mapping.py         pure logic: stick → commands (deadzone, scaling, ignores small stick jitter, button presses)
-sender.py          background thread: latest command per type wins, retries until the camera accepts
-winconsole.py      Windows console close / logoff / shutdown → stop the camera
-updates.py         startup notice when a newer GitHub release exists (never downloads)
-_version.py        "dev"; CI writes the tag here for release builds
-controllers/       Controller port (__init__.py) + winmm.py adapter
-cameras/           Camera port (__init__.py) + ptzoptics.py adapter
-tests/             unit tests with fake controller / camera
+ptz_joystick/        the package
+  __main__.py        python -m ptz_joystick → app.main()
+  app.py             composition root: builds the real adapters, runs the loop, logging setup
+  config.py          Settings (defaults + validation), ptz_joystick.toml loading and template
+  commands.py        PanTilt, Zoom, Preset: camera-agnostic, signed speeds, 0 = stop
+  mapping.py         pure logic: stick → commands (deadzone, scaling, ignores small stick jitter, button presses)
+  sender.py          background thread: latest command per type wins, retries until the camera accepts
+  winconsole.py      Windows console close / logoff / shutdown → stop the camera
+  updates.py         startup notice when a newer GitHub release exists (never downloads)
+  _version.py        "dev"; CI writes the tag here for release builds
+  controllers/       Controller port (__init__.py) + winmm.py adapter
+  cameras/           Camera port (__init__.py) + ptzoptics.py adapter
+tests/               unit tests with fake controller / camera
 ```
+
+Paths below are inside `ptz_joystick/` unless they start with `tests/`.
 
 The two ports are `typing.Protocol` classes, so an adapter only needs the right method; no base class:
 

@@ -1,4 +1,3 @@
-# Repo root is the package, so everything is checked out into ptz_joystick/ and run from one level up.
 name: CI
 
 on:
@@ -12,11 +11,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-        with: { path: ptz_joystick }
       - uses: actions/setup-python@v7
         with: { python-version: "3.14" }
       - run: pip install ruff==0.16.10   # pinned: new ruff releases add default rules
-      - run: ruff check ptz_joystick
+      - run: ruff check .
 
   test:
     runs-on: windows-latest
@@ -25,11 +23,10 @@ jobs:
         python: ["3.11", "3.14"]         # README promises 3.11+ (tomllib); developed on 3.14
     steps:
       - uses: actions/checkout@v7
-        with: { path: ptz_joystick }
       - uses: actions/setup-python@v7
         with: { python-version: "${{ matrix.python }}" }
-      - run: pip install -r ptz_joystick/requirements.txt
-      - run: python -m unittest discover ptz_joystick/tests
+      - run: pip install -r requirements.txt
+      - run: python -m unittest discover tests
 
   build:
     needs: [lint, test]
@@ -38,10 +35,9 @@ jobs:
       contents: write                    # gh release create
     steps:
       - uses: actions/checkout@v7
-        with: { path: ptz_joystick }
       - uses: actions/setup-python@v7
         with: { python-version: "3.14" }
-      - run: pip install -r ptz_joystick/requirements.txt pyinstaller
+      - run: pip install -r requirements.txt pyinstaller
 
       - name: Build exe
         run: |
