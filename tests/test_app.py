@@ -6,11 +6,11 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from ptz_joystick.app import check_camera, run, setup_logging
-from ptz_joystick.commands import PanTilt, Zoom
+from ptz_joystick.app.main import check_camera, run, setup_logging
 from ptz_joystick.config import Settings
 from ptz_joystick.controllers import ControllerState
-from ptz_joystick.sender import CommandSender
+from ptz_joystick.core.commands import PanTilt, Zoom
+from ptz_joystick.core.sender import CommandSender
 
 
 class ScriptedController:
@@ -49,14 +49,14 @@ class RunTest(unittest.TestCase):
     def test_unplug_mid_pan_stops_camera_and_warns(self):
         cam = RecordingCamera()
         sender = CommandSender(cam)
-        with self.assertLogs("ptz_joystick.app", "WARNING") as logs, self.assertRaises(KeyboardInterrupt):
+        with self.assertLogs("ptz_joystick.app.main", "WARNING") as logs, self.assertRaises(KeyboardInterrupt):
             run(Settings(), ScriptedController(moving(x=1), None, moving(x=1)), sender, period=0.01)
         self.assertIn("Controller lost", logs.output[0])
         self.assertIn(PanTilt(0, 0), cam.calls[cam.calls.index(PanTilt(24, 0)) + 1:])
 
     def test_debug_logs_axes(self):
         s = Settings(debug=True)
-        with self.assertLogs("ptz_joystick.app", "DEBUG") as logs, self.assertRaises(KeyboardInterrupt):
+        with self.assertLogs("ptz_joystick.app.main", "DEBUG") as logs, self.assertRaises(KeyboardInterrupt):
             run(s, ScriptedController(moving(x=0.5)), CommandSender(RecordingCamera()), period=0.01)
         self.assertTrue(any("'X': 0.5" in line for line in logs.output))
 
@@ -79,14 +79,14 @@ class CheckCameraTest(unittest.TestCase):
 
 class CrashTest(unittest.TestCase):
     def test_crash_reason_goes_to_log(self):
-        with mock.patch("ptz_joystick.app.main", side_effect=RuntimeError("boom")), \
+        with mock.patch("ptz_joystick.app.main.main", side_effect=RuntimeError("boom")), \
                 self.assertLogs("ptz_joystick", "CRITICAL") as logs, self.assertRaises(SystemExit):
             runpy.run_module("ptz_joystick", run_name="__main__")
         self.assertIn("boom", logs.output[0])
 
     def test_ctrl_c_and_clean_exit_stay_quiet(self):
         for exc in (KeyboardInterrupt(), SystemExit("No controller found.")):
-            with self.subTest(exc=exc), mock.patch("ptz_joystick.app.main", side_effect=exc), \
+            with self.subTest(exc=exc), mock.patch("ptz_joystick.app.main.main", side_effect=exc), \
                     self.assertNoLogs("ptz_joystick", "CRITICAL"):
                 try:
                     runpy.run_module("ptz_joystick", run_name="__main__")
@@ -111,7 +111,7 @@ class SetupLoggingTest(unittest.TestCase):
 
     def test_unwritable_log_file_falls_back_to_terminal(self):
         with tempfile.TemporaryDirectory() as d:          # a folder can't be opened as a log file
-            with self.assertLogs("ptz_joystick.app", "WARNING") as logs:
+            with self.assertLogs("ptz_joystick.app.main", "WARNING") as logs:
                 setup_logging(Settings(log_file=d))
             for h in logging.getLogger().handlers[:]:
                 logging.getLogger().removeHandler(h)

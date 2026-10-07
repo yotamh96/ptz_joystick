@@ -1,10 +1,10 @@
 import logging
 import sys
 
-from . import app
+from .app.main import main
 
 try:
-    app.main()
+    main()
 except KeyboardInterrupt:
     pass
 except Exception as e:                  # SystemExit (clean, explained exits) passes through untouched

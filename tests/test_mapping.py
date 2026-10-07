@@ -1,10 +1,10 @@
 import unittest
 from dataclasses import replace
 
-from ptz_joystick.commands import PanTilt, Preset, Zoom
 from ptz_joystick.config import Settings
 from ptz_joystick.controllers import ControllerState
-from ptz_joystick.mapping import Mapper, changed, scale
+from ptz_joystick.core.commands import PanTilt, Preset, Zoom
+from ptz_joystick.core.mapping import Mapper, changed, scale
 
 
 def state(x=0.0, y=0.0, r=0.0, buttons=0):

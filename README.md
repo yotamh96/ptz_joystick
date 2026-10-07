@@ -52,7 +52,7 @@ python -m ptz_joystick
 
 ## Settings
 
-Settings live in `ptz_joystick.toml`: next to `ptz_joystick.exe`, or next to the code (`ptz_joystick\ptz_joystick.toml` in the repo) when run with Python. If it's missing, the first run writes it with every setting, its default and a comment. Edit it, save, restart.
+Settings live in `ptz_joystick.toml`: next to `ptz_joystick.exe`, or in the repo folder (next to this README) when run with Python. If it's missing, the first run writes it with every setting, its default and a comment. Edit it, save, restart.
 
 To use a different file: `python -m ptz_joystick --config D:\cams\studio2.toml` (same flag for the exe).
 
@@ -145,7 +145,7 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-The tag's run attaches the signed `ptz_joystick.exe` to a GitHub Release named after the tag. The tag is baked into the exe as its version (`ptz_joystick/_version.py`), which is what the update check compares. Tags must look like `v1.2.3`, or the check ignores them.
+The tag's run attaches the signed `ptz_joystick.exe` to a GitHub Release named after the tag. The tag is baked into the exe as its version (`ptz_joystick/app/version.py`), which is what the update check compares. Tags must look like `v1.2.3`, or the check ignores them.
 
 ### Signing certificate (one-time setup)
 
@@ -175,29 +175,31 @@ SmartScreen judges downloaded files by reputation, so a browser download may sti
 Ports and adapters. The logic never touches hardware, so you can change it and test it without a camera.
 
 ```
-ptz_joystick/        the package
-  __main__.py        python -m ptz_joystick → app.main()
-  app.py             composition root: builds the real adapters, runs the loop, logging setup
-  config.py          Settings (defaults + validation), ptz_joystick.toml loading and template
-  commands.py        PanTilt, Zoom, Preset: camera-agnostic, signed speeds, 0 = stop
-  mapping.py         pure logic: stick → commands (deadzone, scaling, ignores small stick jitter, button presses)
-  sender.py          background thread: latest command per type wins, retries until the camera accepts
-  winconsole.py      Windows console close / logoff / shutdown → stop the camera
-  updates.py         startup notice when a newer GitHub release exists (never downloads)
-  _version.py        "dev"; CI writes the tag here for release builds
-  controllers/       Controller port (__init__.py) + winmm.py adapter
-  cameras/           Camera port (__init__.py) + ptzoptics.py adapter
-tests/               unit tests with fake controller / camera
+ptz_joystick/          the package
+  __main__.py          python -m ptz_joystick → app/main.py
+  config.py            Settings (defaults + validation), ptz_joystick.toml loading and template
+  app/                 runs the program
+    main.py            composition root: builds the real adapters, runs the loop, logging setup
+    updates.py         startup notice when a newer GitHub release exists (never downloads)
+    winconsole.py      Windows console close / logoff / shutdown → stop the camera
+    version.py         "dev"; CI writes the tag here for release builds
+  core/                the logic: no hardware, no I/O
+    commands.py        PanTilt, Zoom, Preset: camera-agnostic, signed speeds, 0 = stop
+    mapping.py         stick → commands (deadzone, scaling, ignores small stick jitter, button presses)
+    sender.py          background thread: latest command per type wins, retries until the camera accepts
+  cameras/             Camera port (__init__.py) + ptzoptics.py adapter
+  controllers/         Controller port (__init__.py) + winmm.py adapter
+tests/                 unit tests with fake controller / camera
 ```
 
 Paths below are inside `ptz_joystick/` unless they start with `tests/`.
 
-The two ports are `typing.Protocol` classes, so an adapter only needs the right method; no base class. `mypy` checks that each adapter matches, at the spot where `app.py` plugs it in. The Protocols' docstrings hold the full rules an adapter must follow:
+The two ports are `typing.Protocol` classes, so an adapter only needs the right method; no base class. `mypy` checks that each adapter matches, at the spot where `app/main.py` plugs it in. The Protocols' docstrings hold the full rules an adapter must follow:
 
 - `Controller.read() -> ControllerState | None` in `controllers/__init__.py` (None = unplugged)
 - `Camera.send(cmd: Command) -> bool` in `cameras/__init__.py` (True = camera took it)
 
-The rules for commands are at the top of `commands.py`.
+The rules for commands are at the top of `core/commands.py`.
 
 ## Extending
 
@@ -206,7 +208,7 @@ The rules for commands are at the top of `commands.py`.
 1. Read the rules on `Camera.send` in `cameras/__init__.py`.
 2. Add `cameras/<name>.py` with a class that has `send(cmd) -> bool`.
 3. Add `tests/test_<name>.py`. Copy the checks in `tests/test_ptzoptics.py`: every command type translates, an outage logs once, a wrong login says so.
-4. In `app.py`, build it instead of `PtzOpticsCamera(...)`; `mypy` then checks it against `Camera`. New settings go in `Settings` and `TEMPLATE` in `config.py`.
+4. In `app/main.py`, build it instead of `PtzOpticsCamera(...)`; `mypy` then checks it against `Camera`. New settings go in `Settings` and `TEMPLATE` in `config.py`.
 
 If a camera adapter raises `TypeError` (a command it can't do at all), the sender logs it and drops that command. Any other error from an adapter counts as a refusal and is retried, so a network error can never lose a stop.
 
@@ -215,11 +217,11 @@ If a camera adapter raises `TypeError` (a command it can't do at all), the sende
 1. Read the rules on `Controller.read` in `controllers/__init__.py`.
 2. Add `controllers/<name>.py` with a class that has `read()`, and a function that returns a ready controller (like `winmm.discover()`). Annotate that function's return type, or `mypy` can't check it.
 3. Add `tests/test_<name>.py`. Copy the checks in `tests/test_winmm.py`: only real axes, scaled to -1..1, `None` when unplugged.
-4. In `app.py`, call your function instead of `discover()`; `mypy` then checks the controller against `Controller`.
+4. In `app/main.py`, call your function instead of `discover()`; `mypy` then checks the controller against `Controller`.
 
 ### New button action (home, focus, …)
 
-1. Read the rules at the top of `commands.py`: a complete instruction that is safe to send twice.
+1. Read the rules at the top of `core/commands.py`: a complete instruction that is safe to send twice.
 2. Add a frozen dataclass there and add it to `Command`.
 3. Give it a name in `BUTTON_COMMANDS` in `config.py`, then map a button to it in `ptz_joystick.toml`.
 4. Add a `case` for it in `to_query()` in `cameras/ptzoptics.py`, and an example in `tests/test_ptzoptics.py`. That test fails until you do both.
@@ -228,4 +230,4 @@ The sender needs no change: anything that isn't a stick move gets 3 tries, then 
 
 ### Speed curve / deadzone behaviour
 
-`mapping.py` only, covered by `tests/test_mapping.py`.
+`core/mapping.py` only, covered by `tests/test_mapping.py`.

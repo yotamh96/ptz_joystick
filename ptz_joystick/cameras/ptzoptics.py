@@ -4,7 +4,7 @@ import logging
 import requests
 from requests.auth import HTTPDigestAuth
 
-from ..commands import Command, PanTilt, Preset, Zoom
+from ..core.commands import Command, PanTilt, Preset, Zoom
 
 log = logging.getLogger(__name__)
 

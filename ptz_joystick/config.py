@@ -6,7 +6,7 @@ from dataclasses import dataclass, field, fields, replace
 from pathlib import Path
 from typing import Any, cast
 
-from .commands import MOVES, Command, Preset
+from .core.commands import MOVES, Command, Preset
 
 AXES = "XYZRUV"
 FILE_NAME = "ptz_joystick.toml"
@@ -94,8 +94,8 @@ check_updates = true            # at startup, log a line if a newer release is o
 
 
 def default_path() -> Path:
-    """Next to the exe when frozen by PyInstaller, else inside the package folder."""
-    base = Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(__file__).parent
+    """Next to the exe when frozen by PyInstaller, else in the repo folder (next to README.md)."""
+    base = Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
     return base / FILE_NAME
 
 

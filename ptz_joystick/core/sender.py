@@ -4,7 +4,7 @@ import logging
 import threading
 import time
 
-from .cameras import Camera
+from ..cameras import Camera
 from .commands import MOVES, Command
 
 log = logging.getLogger(__name__)

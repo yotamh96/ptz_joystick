@@ -1,4 +1,5 @@
 import os
+import sys
 import tempfile
 import tomllib
 import unittest
@@ -8,8 +9,8 @@ from typing import Any
 from unittest import mock
 
 from ptz_joystick import config
-from ptz_joystick.commands import PanTilt, Preset
 from ptz_joystick.config import Settings
+from ptz_joystick.core.commands import PanTilt, Preset
 
 
 class ValidationTest(unittest.TestCase):
@@ -48,6 +49,18 @@ class TemplateTest(unittest.TestCase):
             path.write_text('host = "http://10.0.0.1"', encoding="utf-8")
             self.assertFalse(config.write_template_if_missing(path))
             self.assertEqual(path.read_text(encoding="utf-8"), 'host = "http://10.0.0.1"')
+
+
+class DefaultPathTest(unittest.TestCase):
+    def test_source_run_uses_repo_folder(self):
+        repo = Path(__file__).resolve().parent.parent      # tests/ sits in the repo folder
+        self.assertTrue((repo / "README.md").exists())
+        self.assertEqual(config.default_path(), repo / config.FILE_NAME)
+
+    def test_exe_uses_its_own_folder(self):
+        with mock.patch.object(sys, "frozen", True, create=True), \
+                mock.patch.object(sys, "executable", r"C:\tools\ptz_joystick.exe"):
+            self.assertEqual(config.default_path(), Path(r"C:\tools") / config.FILE_NAME)
 
 
 class LoadTest(unittest.TestCase):

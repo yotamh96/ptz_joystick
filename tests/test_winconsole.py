@@ -1,7 +1,7 @@
 import functools
 import unittest
 
-from ptz_joystick.winconsole import (
+from ptz_joystick.app.winconsole import (
     CTRL_CLOSE_EVENT,
     CTRL_LOGOFF_EVENT,
     CTRL_SHUTDOWN_EVENT,
@@ -31,7 +31,7 @@ class HandlerTest(unittest.TestCase):
         def boom():
             raise RuntimeError("camera gone")
 
-        with self.assertLogs("ptz_joystick.winconsole", "ERROR"):
+        with self.assertLogs("ptz_joystick.app.winconsole", "ERROR"):
             self.assertTrue(make_handler(boom)(CTRL_CLOSE_EVENT))
 
 

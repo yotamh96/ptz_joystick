@@ -1,9 +1,9 @@
 """Pure stick -> command logic. No I/O, so every rule here is unit-tested."""
 from dataclasses import astuple
 
+from ..config import Settings
+from ..controllers import ControllerState
 from .commands import Command, PanTilt, Zoom
-from .config import Settings
-from .controllers import ControllerState
 
 
 def scale(v, deadzone, top, full=1.0):

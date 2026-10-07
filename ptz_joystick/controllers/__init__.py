@@ -24,5 +24,5 @@ class Controller(Protocol):
 
         Each adapter module also has a function that returns a ready controller, like winmm.discover(). It
         may wait for the user. With no device, it raises SystemExit("<what to check>"). Annotate its return
-        type, so mypy (in CI) can check the controller against this Protocol where app.py plugs it in.
+        type, so mypy (in CI) can check the controller against this Protocol where app/main.py plugs it in.
         """

@@ -4,16 +4,17 @@ import logging
 import time
 from pathlib import Path
 
-from . import config, updates
-from ._version import VERSION
-from .cameras import Camera
-from .cameras.ptzoptics import PtzOpticsCamera
-from .commands import PanTilt, Zoom
-from .config import Settings
-from .controllers import Controller
-from .controllers.winmm import discover
-from .mapping import Mapper
-from .sender import CommandSender
+from .. import config
+from ..cameras import Camera
+from ..cameras.ptzoptics import PtzOpticsCamera
+from ..config import Settings
+from ..controllers import Controller
+from ..controllers.winmm import discover
+from ..core.commands import PanTilt, Zoom
+from ..core.mapping import Mapper
+from ..core.sender import CommandSender
+from . import updates
+from .version import VERSION
 from .winconsole import on_console_close
 
 log = logging.getLogger(__name__)

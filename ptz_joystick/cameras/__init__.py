@@ -1,12 +1,12 @@
 """Camera port: the one thing the core needs from a camera. The core never imports an adapter."""
 from typing import Protocol
 
-from ..commands import Command
+from ..core.commands import Command
 
 
 class Camera(Protocol):
     def send(self, cmd: Command, /) -> bool:
-        """Send one command from commands.py. True = the camera took it.
+        """Send one command from core/commands.py. True = the camera took it.
 
         Rules for an adapter:
         - PanTilt(0, 0) is "stop" and must always work: it is the startup check and the last thing sent.

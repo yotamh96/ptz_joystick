@@ -3,8 +3,8 @@ import time
 import unittest
 from dataclasses import dataclass
 
-from ptz_joystick.commands import PanTilt, Preset, Zoom
-from ptz_joystick.sender import CommandSender
+from ptz_joystick.core.commands import PanTilt, Preset, Zoom
+from ptz_joystick.core.sender import CommandSender
 
 
 class FakeCamera:
@@ -83,7 +83,7 @@ class SenderTest(unittest.TestCase):
 
         cam = PickyCamera()
         s = CommandSender(cam, backoff=0.01)
-        with self.assertLogs("ptz_joystick.sender", "ERROR") as logs:
+        with self.assertLogs("ptz_joystick.core.sender", "ERROR") as logs:
             s.send(Preset(9))
             self.assertTrue(tried.wait(1))
             self.assertTrue(s.drain_with([PanTilt(0, 0)], timeout=1))
@@ -109,7 +109,7 @@ class SenderTest(unittest.TestCase):
     def test_refused_preset_dropped_after_3_tries(self):
         cam = FakeCamera(fail_first=10**6)
         s = CommandSender(cam, backoff=0.01)
-        with self.assertLogs("ptz_joystick.sender", "WARNING") as logs:
+        with self.assertLogs("ptz_joystick.core.sender", "WARNING") as logs:
             s.send(Preset(3))
             self.assertTrue(wait_idle(s, timeout=1))
         self.assertEqual(cam.calls, [Preset(3)] * 3)
@@ -139,7 +139,7 @@ class SenderTest(unittest.TestCase):
     def test_adapter_error_is_retried_not_dropped(self):
         cam = RaisingCamera(raise_first=2, error=OSError)
         s = CommandSender(cam, backoff=0.01)
-        with self.assertLogs("ptz_joystick.sender", "ERROR") as logs:
+        with self.assertLogs("ptz_joystick.core.sender", "ERROR") as logs:
             self.assertTrue(s.drain_with([PanTilt(0, 0)], timeout=1))
         self.assertEqual(cam.calls, [PanTilt(0, 0)] * 3)
         self.assertEqual(len(logs.records), 1)          # traceback once, not on every retry
@@ -147,7 +147,7 @@ class SenderTest(unittest.TestCase):
     def test_adapter_error_on_stop_is_not_reported_as_stopped(self):
         cam = RaisingCamera()
         s = CommandSender(cam, backoff=0.01)
-        with self.assertLogs("ptz_joystick.sender", "ERROR") as logs:
+        with self.assertLogs("ptz_joystick.core.sender", "ERROR") as logs:
             self.assertFalse(s.drain_with([PanTilt(0, 0), Zoom(0)], timeout=0.3))
         self.assertGreater(len(cam.calls), 2)            # stops kept retrying
         self.assertEqual(len(logs.records), 2)          # one traceback per command
@@ -163,7 +163,7 @@ class SenderTest(unittest.TestCase):
 
         cam = NoOdd()
         s = CommandSender(cam, backoff=0.01)
-        with self.assertLogs("ptz_joystick.sender", "WARNING"):
+        with self.assertLogs("ptz_joystick.core.sender", "WARNING"):
             s.send(Odd([1]))                           # type: ignore[arg-type]  # deliberately not a Command
             self.assertTrue(wait_idle(s, timeout=1))
         self.assertTrue(s.drain_with([PanTilt(0, 0)], timeout=1))
@@ -176,7 +176,7 @@ class SenderTest(unittest.TestCase):
 
         cam = FakeCamera(fail_first=10**6)
         s = CommandSender(cam, backoff=0.01)
-        with self.assertLogs("ptz_joystick.sender", "WARNING") as logs:
+        with self.assertLogs("ptz_joystick.core.sender", "WARNING") as logs:
             s.send(Home())                             # type: ignore[arg-type]  # deliberately not a Command
             self.assertTrue(wait_idle(s, timeout=1))
         self.assertEqual(cam.calls, [Home()] * 3)

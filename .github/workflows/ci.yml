@@ -44,7 +44,7 @@ jobs:
         run: |
           # A release exe carries its tag, so it can tell when a newer release exists. Other builds stay "dev".
           if ($env:GITHUB_REF_TYPE -eq "tag") {
-            "VERSION = `"$env:GITHUB_REF_NAME`"" | Out-File ptz_joystick\_version.py -Encoding ascii
+            "VERSION = `"$env:GITHUB_REF_NAME`"" | Out-File ptz_joystick\app\version.py -Encoding ascii
           }
           "import ptz_joystick.__main__" | Out-File launch.py -Encoding ascii   # __main__.py uses relative imports
           pyinstaller --onefile --name ptz_joystick launch.py

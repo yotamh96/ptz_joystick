@@ -2,7 +2,7 @@ import unittest
 
 import requests
 
-from ptz_joystick import updates
+from ptz_joystick.app import updates
 
 
 class FakeResponse:
@@ -70,19 +70,19 @@ class NewerReleaseTest(unittest.TestCase):
             ("list", FakeGet(FakeResponse(data=[]))),
             ("odd tag", FakeGet(release("nightly"))),
         ]:
-            with self.subTest(name), self.assertNoLogs("ptz_joystick.updates", "INFO"):
+            with self.subTest(name), self.assertNoLogs("ptz_joystick.app.updates", "INFO"):
                 self.assertIsNone(updates.newer_release("v0.2.0", get))
 
 
 class BackgroundTest(unittest.TestCase):
     def test_logs_update_line(self):
-        with self.assertLogs("ptz_joystick.updates", "INFO") as logs:
+        with self.assertLogs("ptz_joystick.app.updates", "INFO") as logs:
             updates.check_in_background("v0.2.0", FakeGet(release("v0.3.0"))).join(5)
         self.assertEqual(len(logs.output), 1)
         self.assertIn("Update available: v0.3.0 (you have v0.2.0) https://example/v0.3.0", logs.output[0])
 
     def test_silent_when_current(self):
-        with self.assertNoLogs("ptz_joystick.updates", "INFO"):
+        with self.assertNoLogs("ptz_joystick.app.updates", "INFO"):
             updates.check_in_background("v0.3.0", FakeGet(release("v0.3.0"))).join(5)
 
 
