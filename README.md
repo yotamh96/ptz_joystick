@@ -15,6 +15,8 @@ setx PTZ_PASSWORD "your-camera-password"
 
 `setx` only applies to new terminals, so open a new one after running it.
 
+**No Python?** Download `ptz_joystick.exe` from the latest GitHub Release, run the `setx` line, then run the exe from a new terminal. The exe carries the `config.py` settings it was built with. To change a setting, edit `config.py` and make a new release (see [Releases](#releases)).
+
 ## Run
 
 From the folder that **contains** `ptz_joystick\` (for example, `Desktop`):
@@ -98,6 +100,53 @@ python -m unittest discover ptz_joystick\tests
 ```
 
 These need no camera and no controller. Fakes stand in for both.
+
+Lint (CI runs the same check):
+
+```powershell
+pip install ruff==0.16.10
+ruff check ptz_joystick
+```
+
+## Releases
+
+CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push and PR:
+
+1. `lint`: `ruff check`
+2. `test`: the unit tests on Python 3.10 and 3.14, on Windows
+3. `build`: PyInstaller → `ptz_joystick.exe`, signed, smoke-tested (it must reach the password check). Download it from the run's **Artifacts**.
+
+To publish a release:
+
+```powershell
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+The tag's run attaches the signed `ptz_joystick.exe` to a GitHub Release named after the tag.
+
+### Signing certificate (one-time setup)
+
+The exe is signed with a self-signed certificate, so only Draco PCs trust it. IT pushes the certificate to them through Group Policy. On any other PC it behaves like an unsigned exe.
+
+On your PC, in PowerShell:
+
+```powershell
+$c = New-SelfSignedCertificate -Type CodeSigningCert -Subject "CN=Draco ptz_joystick" -CertStoreLocation Cert:\CurrentUser\My -NotAfter (Get-Date).AddYears(5)
+$pw = Read-Host -AsSecureString "PFX password"
+Export-PfxCertificate -Cert $c -FilePath ptz-signing.pfx -Password $pw
+[Convert]::ToBase64String([IO.File]::ReadAllBytes("$PWD\ptz-signing.pfx")) | Set-Clipboard
+Export-Certificate -Cert $c -FilePath draco-ptz.cer
+```
+
+1. GitHub repo → Settings → Secrets and variables → Actions → add `SIGNING_PFX` (paste the clipboard) and `SIGNING_PFX_PASSWORD`.
+2. Delete `ptz-signing.pfx`. GitHub now holds the only copy of the exported key you need.
+3. Send `draco-ptz.cer` (public part only) to IT. Ask them to deploy it with Group Policy to **Trusted Root Certification Authorities** and **Trusted Publishers**.
+4. Check on a Draco PC: `Get-AuthenticodeSignature ptz_joystick.exe` should say `Valid`.
+
+Without the secrets, pushes still build an unsigned exe and show a warning. Tag runs fail, so an unsigned exe is never released.
+
+SmartScreen judges downloaded files by reputation, so a browser download may still show "More info → Run anyway" once. Copying the exe from a network share, or running `Unblock-File ptz_joystick.exe`, avoids that.
 
 ## How it's built
 

@@ -1,0 +1,88 @@
+# Repo root is the package, so everything is checked out into ptz_joystick/ and run from one level up.
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with: { path: ptz_joystick }
+      - uses: actions/setup-python@v7
+        with: { python-version: "3.14" }
+      - run: pip install ruff==0.16.10   # pinned: new ruff releases add default rules
+      - run: ruff check ptz_joystick
+
+  test:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python: ["3.10", "3.14"]         # README promises 3.10+; developed on 3.14
+    steps:
+      - uses: actions/checkout@v7
+        with: { path: ptz_joystick }
+      - uses: actions/setup-python@v7
+        with: { python-version: "${{ matrix.python }}" }
+      - run: pip install -r ptz_joystick/requirements.txt
+      - run: python -m unittest discover ptz_joystick/tests
+
+  build:
+    needs: [lint, test]
+    runs-on: windows-latest
+    permissions:
+      contents: write                    # gh release create
+    steps:
+      - uses: actions/checkout@v7
+        with: { path: ptz_joystick }
+      - uses: actions/setup-python@v7
+        with: { python-version: "3.14" }
+      - run: pip install -r ptz_joystick/requirements.txt pyinstaller
+
+      - name: Build exe
+        run: |
+          "import ptz_joystick.__main__" | Out-File launch.py -Encoding ascii   # __main__.py uses relative imports
+          pyinstaller --onefile --name ptz_joystick launch.py
+
+      - name: Sign exe
+        env:
+          SIGNING_PFX: ${{ secrets.SIGNING_PFX }}
+          SIGNING_PFX_PASSWORD: ${{ secrets.SIGNING_PFX_PASSWORD }}
+        run: |
+          if (-not $env:SIGNING_PFX) {
+            if ($env:GITHUB_REF_TYPE -eq "tag") { throw "SIGNING_PFX secret missing: releases must be signed" }
+            "::warning::SIGNING_PFX secret not set, exe left unsigned"
+            exit 0
+          }
+          $cert = [Security.Cryptography.X509Certificates.X509Certificate2]::new(
+            [Convert]::FromBase64String($env:SIGNING_PFX), $env:SIGNING_PFX_PASSWORD)
+          Set-AuthenticodeSignature dist\ptz_joystick.exe -Certificate $cert -HashAlgorithm SHA256 `
+            -TimestampServer http://timestamp.digicert.com | Out-Null
+          # Status is UnknownError here (runner doesn't trust our self-signed root), so check the signer instead.
+          if ((Get-AuthenticodeSignature dist\ptz_joystick.exe).SignerCertificate.Thumbprint -ne $cert.Thumbprint) {
+            throw "exe not signed"
+          }
+
+      - name: Smoke test
+        run: |
+          # No PTZ_PASSWORD on the runner: the exe must get through every import and stop at the password check.
+          $out = & dist\ptz_joystick.exe 2>&1 | Out-String
+          if ($LASTEXITCODE -ne 1 -or $out -notmatch "Set the camera password first") {
+            throw "unexpected exit $LASTEXITCODE`n$out"
+          }
+          exit 0
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: ptz_joystick
+          path: dist/ptz_joystick.exe
+
+      - name: Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create $env:GITHUB_REF_NAME dist\ptz_joystick.exe --repo $env:GITHUB_REPOSITORY --generate-notes

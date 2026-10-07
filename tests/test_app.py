@@ -113,7 +113,8 @@ class SetupLoggingTest(unittest.TestCase):
                 for h in logging.getLogger().handlers[:]:
                     h.close()
                     logging.getLogger().removeHandler(h)
-            line = open(path, encoding="utf-8").read()
+            with open(path, encoding="utf-8") as f:
+                line = f.read()
         self.assertRegex(line, r"^\d\d:\d\d:\d\d INFO +hello camera")
 
     def test_unwritable_log_file_falls_back_to_terminal(self):

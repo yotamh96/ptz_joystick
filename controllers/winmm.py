@@ -67,9 +67,9 @@ def discover():
     log.info("Joystick IDs found: %s", list(start))
     log.info("Move the left stick now...")
     while True:
-        for d in start:
+        for d, axes0 in start.items():
             st = found[d].read()
-            if st and max(abs(st.axes[a] - start[d][a]) for a in start[d]) > 0.3:
+            if st and max(abs(st.axes[a] - axes0[a]) for a in axes0) > 0.3:
                 log.info("Using joystick ID %s", d)
                 return found[d]
         time.sleep(0.05)
