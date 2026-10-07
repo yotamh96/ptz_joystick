@@ -8,7 +8,7 @@ from .. import config
 from ..cameras import Camera
 from ..cameras.ptzoptics import PtzOpticsCamera
 from ..config import Settings
-from ..controllers import Controller
+from ..controllers import Controller, keyboard
 from ..controllers.winmm import discover
 from ..core.commands import PanTilt, SavePreset, Tracking, Zoom
 from ..core.mapping import Mapper
@@ -55,7 +55,9 @@ def main(argv=None):
     parser.add_argument("--config", type=Path, default=config.default_path(),
                         help=f"settings file (default: {config.default_path()})")
     parser.add_argument("--version", action="version", version=VERSION)
-    path = parser.parse_args(argv).config
+    parser.add_argument("--keyboard", action="store_true", help="drive with the keyboard instead of a controller")
+    args = parser.parse_args(argv)
+    path = args.config
     created = config.write_template_if_missing(path)
     s = config.load(path)
     setup_logging(s)
@@ -67,7 +69,12 @@ def main(argv=None):
     log.info("Settings: %s", path)
     camera = PtzOpticsCamera(s.host, s.user, s.password, s.timeout)
     check_camera(camera, s.host, path)
-    controller = discover()
+    controller: Controller
+    if args.keyboard:
+        log.info(keyboard.HELP)
+        controller = keyboard.KeyboardController(s)
+    else:
+        controller = discover()
     if state := controller.read():
         missing = [a for a in (s.pan_axis, s.tilt_axis, s.zoom_axis) if a not in state.axes]
         if missing:

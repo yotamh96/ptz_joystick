@@ -39,6 +39,8 @@ python -m ptz_joystick
 2. It lists the joystick IDs it found and asks you to move the left stick. It uses the controller that moves.
 3. It drives the camera until you press **Ctrl+C** or close the window. Both send a stop to the camera before exiting.
 
+**No controller at hand?** `python -m ptz_joystick --keyboard` (same flag for the exe) skips step 2 and drives with the keyboard: arrows = left stick, **W / S** = zoom in / out, keys **1–4** = buttons 1–4 (tap = go to preset, hold 2 s = save it). Each key is a full push, so moves run at top speed; lower `pan_max` / `tilt_max` / `zoom_max` for gentler moves. Keys only count while the tool's window (console, Windows Terminal or VS Code) is in front. Click another window and the camera stops.
+
 ## Controls
 
 | Input | Camera |
