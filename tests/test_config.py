@@ -107,6 +107,7 @@ class LoadTest(unittest.TestCase):
             ('[buttons]\n0 = "home"', "bad command 'home'"),
             ('[buttons]\n0 = "preset"', "bad command"),
             ('[buttons]\n0 = "preset -1"', "bad command 'preset -1'"),
+            ('[buttons]\n5 = "tracking 1"', "bad command 'tracking 1'"),     # tracking takes no number
             ("timeout = inf", "timeout"),                    # TOML allows inf
             ('[buttons]\n0 = 3', "bad command"),
             ('[buttons]\nx = "preset 1"', "index must be a number"),

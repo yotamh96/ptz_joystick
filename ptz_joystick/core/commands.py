@@ -33,6 +33,11 @@ class SavePreset:
     number: int     # store the current position under this number
 
 
-Command = PanTilt | Zoom | Preset | SavePreset  # everything a camera adapter may be sent
+@dataclass(frozen=True)
+class Tracking:
+    on: bool        # auto-tracking on or off. Not a toggle: a toggle sent twice would undo itself
+
+
+Command = PanTilt | Zoom | Preset | SavePreset | Tracking   # everything a camera adapter may be sent
 MOVES = PanTilt | Zoom              # what the sticks send: current state, retried until the camera takes it.
                                     # Every other command is a one-shot action (a button press).

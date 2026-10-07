@@ -3,7 +3,7 @@ from dataclasses import replace
 
 from ptz_joystick.config import Settings
 from ptz_joystick.controllers import ControllerState
-from ptz_joystick.core.commands import PanTilt, Preset, SavePreset, Zoom
+from ptz_joystick.core.commands import PanTilt, Preset, SavePreset, Tracking, Zoom
 from ptz_joystick.core.mapping import Mapper, changed, scale
 
 
@@ -101,6 +101,14 @@ class MapperTest(unittest.TestCase):
         self.clock.now = 30.0
         self.assertEqual(m.update(state(buttons=0b10)), [])
         self.assertEqual(m.update(state()), [])
+
+    def test_tracking_button_alternates_on_off(self):
+        button5 = 0b10000                                                    # index 4 = "tracking" by default
+        self.m.update(state())
+        self.assertEqual(self.m.update(state(buttons=button5)), [Tracking(True)])
+        self.assertEqual(self.m.update(state(buttons=button5)), [])         # held: nothing more
+        self.assertEqual(self.m.update(state()), [])                        # release: nothing
+        self.assertEqual(self.m.update(state(buttons=button5)), [Tracking(False)])
 
     def test_lost_controller_stops_and_cancels_hold(self):
         self.m.update(state(x=1, buttons=0b1))

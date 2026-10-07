@@ -47,6 +47,7 @@ python -m ptz_joystick
 | Right stick up / down | Zoom in / out |
 | Tap buttons 1–4 | Go to presets 1–4 (fires when you let go) |
 | Hold button 1–4 for 2 s | Save the current view as that preset. The log says `Saving the current position as preset N.` |
+| Button 5 | Auto-tracking on, next press off, and so on. The log says `Auto-tracking on.` / `off.` PTZOptics Move SE / Move 4K only. The camera can't report its tracking state, so the first press after starting always turns it on |
 | Controller unplugged | Camera stops. Plug it back in to carry on |
 | Ctrl+C, closing the window, logoff, shutdown | Camera stops |
 | Crash | Camera stops. The reason and traceback go to the log file |
@@ -69,7 +70,7 @@ A misspelled setting, a wrong type (`"24"` instead of `24`) or a `password` line
 | `deadzone` | `0.15` | Stick readings at or below this are ignored |
 | `full_speed_at` | `0.7` | Stick reading that gives top speed. The current pad tops out at about 0.75, not 1.0 |
 | `pan_max` / `tilt_max` / `zoom_max` | `24` / `20` / `7` | Camera's top speeds. These defaults are also the most the camera accepts; lower them for slower moves |
-| `[buttons]` | `0 = "preset 1"` … `3 = "preset 4"` | Button index → command. Index 0 is "button 1" in `joy.cpl` |
+| `[buttons]` | `0 = "preset 1"` … `3 = "preset 4"`, `4 = "tracking"` | Button index → `preset N` or `tracking`. Index 0 is "button 1" in `joy.cpl`. A settings file made before v0.5.0 lacks the `4 = "tracking"` line; add it to get the tracking button |
 | `save_hold_seconds` | `2.0` | Hold a preset button this long to save the current view there. `0` turns saving off, and presets then fire on press instead of on release |
 | `debug` | `false` | `true` logs every stick reading and every command sent |
 | `log_file` | `"ptz_joystick.log"` | Log file, appended next to `ptz_joystick.toml` (so next to the exe). A full path goes there instead: `log_file = 'D:\logs\ptz.log'` (single quotes, so the backslashes stay as typed). `""` = terminal only |

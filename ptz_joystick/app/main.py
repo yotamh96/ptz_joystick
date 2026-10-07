@@ -10,7 +10,7 @@ from ..cameras.ptzoptics import PtzOpticsCamera
 from ..config import Settings
 from ..controllers import Controller
 from ..controllers.winmm import discover
-from ..core.commands import PanTilt, SavePreset, Zoom
+from ..core.commands import PanTilt, SavePreset, Tracking, Zoom
 from ..core.mapping import Mapper
 from ..core.sender import CommandSender
 from . import updates
@@ -100,6 +100,8 @@ def run(s: Settings, controller: Controller, sender: CommandSender, period=0.05)
             for cmd in mapper.update(state):
                 if isinstance(cmd, SavePreset):
                     log.info("Saving the current position as preset %d.", cmd.number)
+                elif isinstance(cmd, Tracking):
+                    log.info("Auto-tracking %s.", "on" if cmd.on else "off")
                 sender.send(cmd)
             time.sleep(period)
     finally:                            # never leave the camera moving

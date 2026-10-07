@@ -6,9 +6,16 @@ from unittest import mock
 import requests
 
 from ptz_joystick.cameras.ptzoptics import PtzOpticsCamera, to_query
-from ptz_joystick.core.commands import Command, PanTilt, Preset, SavePreset, Zoom
+from ptz_joystick.core.commands import (
+    Command,
+    PanTilt,
+    Preset,
+    SavePreset,
+    Tracking,
+    Zoom,
+)
 
-EXAMPLES: list[Command] = [PanTilt(3, -4), Zoom(-3), Preset(4), SavePreset(4)]    # one of each command type
+EXAMPLES: list[Command] = [PanTilt(3, -4), Zoom(-3), Preset(4), SavePreset(4), Tracking(True)]    # one of each command type
 
 
 class ToQueryTest(unittest.TestCase):
@@ -16,23 +23,35 @@ class ToQueryTest(unittest.TestCase):
         self.assertEqual({type(c) for c in EXAMPLES}, set(get_args(Command)), "new command type? add an example")
         for cmd in EXAMPLES:
             with self.subTest(cmd=cmd):
-                self.assertTrue(to_query(cmd).startswith("ptzcmd&"))
+                self.assertTrue(to_query(cmd).startswith(("ptzctrl.cgi?ptzcmd&", "param.cgi?")))
 
     def test_pantilt(self):
-        self.assertEqual(to_query(PanTilt(0, 0)), "ptzcmd&ptzstop&0&0")
-        self.assertEqual(to_query(PanTilt(-24, 20)), "ptzcmd&leftup&24&20")
-        self.assertEqual(to_query(PanTilt(10, 0)), "ptzcmd&right&10&1")    # idle axis still needs speed 1
-        self.assertEqual(to_query(PanTilt(0, -5)), "ptzcmd&down&1&5")
-        self.assertEqual(to_query(PanTilt(3, -4)), "ptzcmd&rightdown&3&4")
+        self.assertEqual(to_query(PanTilt(0, 0)), "ptzctrl.cgi?ptzcmd&ptzstop&0&0")
+        self.assertEqual(to_query(PanTilt(-24, 20)), "ptzctrl.cgi?ptzcmd&leftup&24&20")
+        self.assertEqual(to_query(PanTilt(10, 0)), "ptzctrl.cgi?ptzcmd&right&10&1")    # idle axis still needs speed 1
+        self.assertEqual(to_query(PanTilt(0, -5)), "ptzctrl.cgi?ptzcmd&down&1&5")
+        self.assertEqual(to_query(PanTilt(3, -4)), "ptzctrl.cgi?ptzcmd&rightdown&3&4")
 
     def test_zoom(self):
-        self.assertEqual(to_query(Zoom(0)), "ptzcmd&zoomstop&0")
-        self.assertEqual(to_query(Zoom(7)), "ptzcmd&zoomin&7")
-        self.assertEqual(to_query(Zoom(-3)), "ptzcmd&zoomout&3")
+        self.assertEqual(to_query(Zoom(0)), "ptzctrl.cgi?ptzcmd&zoomstop&0")
+        self.assertEqual(to_query(Zoom(7)), "ptzctrl.cgi?ptzcmd&zoomin&7")
+        self.assertEqual(to_query(Zoom(-3)), "ptzctrl.cgi?ptzcmd&zoomout&3")
 
     def test_preset(self):
-        self.assertEqual(to_query(Preset(4)), "ptzcmd&poscall&4")
-        self.assertEqual(to_query(SavePreset(4)), "ptzcmd&posset&4")
+        self.assertEqual(to_query(Preset(4)), "ptzctrl.cgi?ptzcmd&poscall&4")
+        self.assertEqual(to_query(SavePreset(4)), "ptzctrl.cgi?ptzcmd&posset&4")
+
+    def test_tracking_uses_param_cgi(self):
+        self.assertEqual(to_query(Tracking(True)), "param.cgi?set_overlay&autotracking&on")
+        self.assertEqual(to_query(Tracking(False)), "param.cgi?set_overlay&autotracking&off")
+
+    def test_full_url(self):
+        cam = camera_answering(200, 200)
+        cam.send(PanTilt(0, 0))
+        cam.send(Tracking(True))
+        urls = [c.args[0] for c in cam._session.get.call_args_list]
+        self.assertEqual(urls, ["http://cam/cgi-bin/ptzctrl.cgi?ptzcmd&ptzstop&0&0",
+                                "http://cam/cgi-bin/param.cgi?set_overlay&autotracking&on"])
 
 
 def camera_answering(*answers):

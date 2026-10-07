@@ -5,7 +5,7 @@ from dataclasses import astuple
 
 from ..config import Settings
 from ..controllers import ControllerState
-from .commands import Command, PanTilt, Preset, SavePreset, Zoom
+from .commands import Command, PanTilt, Preset, SavePreset, Tracking, Zoom
 
 
 def scale(v, deadzone, top, full=1.0):
@@ -40,11 +40,13 @@ class Mapper:
         self._last: dict[type, Command] = {}    # command type -> last command sent
         self._buttons = 0
         self._down: dict[int, float] = {}       # preset button -> when pressed, until it's a tap or a save
+        self._tracking = False                  # last auto-tracking state sent; assumed off at start
 
     def update(self, state: ControllerState | None):
         """state=None means the controller is gone: stick reads centred, buttons unchanged, a half-done hold
         is cancelled."""
-        s, cmds = self._settings, []
+        s = self._settings
+        cmds: list[Command] = []
         axes = state.axes if state else {}
         if state is None:
             self._down.clear()
@@ -55,7 +57,10 @@ class Mapper:
             self._buttons = state.buttons
             for b, cmd in s.buttons.items():
                 if not (isinstance(cmd, Preset) and s.save_hold_seconds):
-                    if pressed >> b & 1:
+                    if pressed >> b & 1 and isinstance(cmd, Tracking):
+                        self._tracking = not self._tracking         # the camera can't be asked, so we remember
+                        cmds.append(Tracking(self._tracking))
+                    elif pressed >> b & 1:
                         cmds.append(cmd)
                 elif pressed >> b & 1:
                     self._down[b] = now

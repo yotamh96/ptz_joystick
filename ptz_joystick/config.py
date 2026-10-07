@@ -2,19 +2,24 @@
 import os
 import sys
 import tomllib
+from collections.abc import Callable
 from dataclasses import dataclass, field, fields, replace
 from pathlib import Path
 from typing import Any, cast
 
-from .core.commands import MOVES, Command, Preset
+from .core.commands import MOVES, Command, Preset, Tracking
 
 AXES = "XYZRUV"
 FILE_NAME = "ptz_joystick.toml"
 TOP_SPEEDS = {"pan_max": 24, "tilt_max": 20, "zoom_max": 7}     # PTZOptics speed ranges
 MAX_TIMEOUT = 2.0       # seconds: a stuck request plus the final stops must fit the 3 s shutdown window
-# Settings-file name -> command a button may fire. Actions only: a stick move started by a button would never
-# be stopped, because the sticks only stop moves they started.
-BUTTON_COMMANDS = {"preset": Preset}
+# Settings-file name -> (command a button may fire, how to write it). Actions only: a stick move started by a
+# button would never be stopped, because the sticks only stop moves they started. A "tracking" button toggles:
+# the mapper sends Tracking(on) and Tracking(off) in turn, so the stored Tracking(True) only marks the button.
+BUTTON_COMMANDS: dict[str, tuple[Callable[..., Command], str]] = {
+    "preset": (Preset, "preset N (N = a whole number, 0 or more)"),
+    "tracking": (lambda: Tracking(True), "tracking"),
+}
 
 
 @dataclass(frozen=True)
@@ -37,7 +42,7 @@ class Settings:
     zoom_max: int = 7
 
     buttons: dict = field(default_factory=lambda: {   # button index -> command
-        0: Preset(1), 1: Preset(2), 2: Preset(3), 3: Preset(4)})
+        0: Preset(1), 1: Preset(2), 2: Preset(3), 3: Preset(4), 4: Tracking(True)})
     save_hold_seconds: float = 2.0      # hold a preset button this long to save the current position there; 0 = off
     debug: bool = False                # True = log axis values and buttons (DEBUG level)
     log_file: str = "ptz_joystick.log"  # relative = next to the settings file; "" = terminal only
@@ -98,6 +103,7 @@ check_updates = true            # at startup, log a line if a newer release is o
 1 = "preset 2"
 2 = "preset 3"
 3 = "preset 4"
+4 = "tracking"                  # toggle auto-tracking (PTZOptics Move SE / Move 4K)
 """
 
 
@@ -120,14 +126,14 @@ def write_template_if_missing(path: Path) -> bool:
 def parse_command(text) -> Command:
     """'preset 1' -> Preset(1)."""
     words = text.split() if isinstance(text, str) else []
-    cls = BUTTON_COMMANDS.get(words[0].lower()) if words else None
-    if cls is not None and all(w.isdecimal() for w in words[1:]):     # whole numbers, 0 or more ("-1" fails)
+    entry = BUTTON_COMMANDS.get(words[0].lower()) if words else None
+    if entry is not None and all(w.isdecimal() for w in words[1:]):   # whole numbers, 0 or more ("-1" fails)
         try:
-            return cls(*map(int, words[1:]))
+            return entry[0](*map(int, words[1:]))
         except TypeError:                       # wrong number of values
             pass
-    names = ", ".join(f"{n} N" for n in BUTTON_COMMANDS)
-    raise ValueError(f"bad command {text!r}, use one of: {names} (N = a whole number, 0 or more)")
+    usage = ", ".join(how for _, how in BUTTON_COMMANDS.values())
+    raise ValueError(f"bad command {text!r}, use one of: {usage}")
 
 
 def parse_buttons(table: dict) -> dict:
