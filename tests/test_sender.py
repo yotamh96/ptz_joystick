@@ -1,6 +1,7 @@
 import threading
 import time
 import unittest
+from dataclasses import dataclass
 
 from ptz_joystick.commands import PanTilt, Preset, Zoom
 from ptz_joystick.sender import CommandSender
@@ -18,6 +19,21 @@ class FakeCamera:
         with self.lock:
             self.calls.append(cmd)
             return len(self.calls) > self.fail_first
+
+
+class RaisingCamera(FakeCamera):
+    """An adapter that forgot to turn its network errors into False."""
+
+    def __init__(self, raise_first=10**6, error=TimeoutError):
+        super().__init__()
+        self.raise_first, self.error = raise_first, error
+
+    def send(self, cmd):
+        with self.lock:
+            self.calls.append(cmd)
+            if len(self.calls) <= self.raise_first:
+                raise self.error("timed out")
+            return True
 
 
 def wait_idle(s, timeout=2):
@@ -119,6 +135,73 @@ class SenderTest(unittest.TestCase):
     def test_drain_gives_up_on_dead_camera(self):
         s = CommandSender(FakeCamera(fail_first=10**6), backoff=0.01)
         self.assertFalse(s.drain_with([PanTilt(0, 0)], timeout=0.2))
+
+    def test_adapter_error_is_retried_not_dropped(self):
+        cam = RaisingCamera(raise_first=2, error=OSError)
+        s = CommandSender(cam, backoff=0.01)
+        with self.assertLogs("ptz_joystick.sender", "ERROR") as logs:
+            self.assertTrue(s.drain_with([PanTilt(0, 0)], timeout=1))
+        self.assertEqual(cam.calls, [PanTilt(0, 0)] * 3)
+        self.assertEqual(len(logs.records), 1)          # traceback once, not on every retry
+
+    def test_adapter_error_on_stop_is_not_reported_as_stopped(self):
+        cam = RaisingCamera()
+        s = CommandSender(cam, backoff=0.01)
+        with self.assertLogs("ptz_joystick.sender", "ERROR") as logs:
+            self.assertFalse(s.drain_with([PanTilt(0, 0), Zoom(0)], timeout=0.3))
+        self.assertGreater(len(cam.calls), 2)            # stops kept retrying
+        self.assertEqual(len(logs.records), 2)          # one traceback per command
+
+    def test_refused_unhashable_command_does_not_kill_sender(self):
+        @dataclass(frozen=True)
+        class Odd:                                     # frozen, but the list makes it unhashable
+            items: list
+
+        class NoOdd(FakeCamera):
+            def send(self, cmd):
+                return super().send(cmd) and not isinstance(cmd, Odd)
+
+        cam = NoOdd()
+        s = CommandSender(cam, backoff=0.01)
+        with self.assertLogs("ptz_joystick.sender", "WARNING"):
+            s.send(Odd([1]))
+            self.assertTrue(wait_idle(s, timeout=1))
+        self.assertTrue(s.drain_with([PanTilt(0, 0)], timeout=1))
+        self.assertEqual(cam.calls[-1], PanTilt(0, 0))
+
+    def test_new_action_type_gives_up_without_sender_change(self):
+        @dataclass(frozen=True)
+        class Home:                                    # a button action the sender has never heard of
+            pass
+
+        cam = FakeCamera(fail_first=10**6)
+        s = CommandSender(cam, backoff=0.01)
+        with self.assertLogs("ptz_joystick.sender", "WARNING") as logs:
+            s.send(Home())
+            self.assertTrue(wait_idle(s, timeout=1))
+        self.assertEqual(cam.calls, [Home()] * 3)
+        self.assertIn("gave up", logs.output[-1])
+
+    def test_stale_command_not_sent_after_drain(self):
+        started, release = threading.Event(), threading.Event()
+
+        class SlowFirst(FakeCamera):
+            def send(self, cmd):
+                if not started.is_set():
+                    started.set()
+                    release.wait(1)
+                return super().send(cmd)
+
+        cam = SlowFirst()
+        s = CommandSender(cam, backoff=0.01)
+        with s.cv:                                     # both go out in one batch
+            s.send(PanTilt(5, 0))
+            s.send(Zoom(3))
+        self.assertTrue(started.wait(1))               # PanTilt(5, 0) is in flight...
+        threading.Timer(0.05, release.set).start()     # ...when the console closes
+        self.assertTrue(s.drain_with([PanTilt(0, 0), Zoom(0)], timeout=2))
+        self.assertNotIn(Zoom(3), cam.calls)
+        self.assertEqual(cam.calls[-2:], [PanTilt(0, 0), Zoom(0)])
 
 
 if __name__ == "__main__":

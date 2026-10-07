@@ -18,4 +18,6 @@ class Preset:
     number: int
 
 
-Command = PanTilt | Zoom | Preset   # everything a camera adapter must handle
+Command = PanTilt | Zoom | Preset   # everything a camera adapter may be sent
+MOVES = PanTilt | Zoom              # what the sticks send: current state, retried until the camera takes it.
+                                    # Every other command is a one-shot action (a button press).

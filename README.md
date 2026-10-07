@@ -88,7 +88,7 @@ Every line has a timestamp and goes to the terminal and to `ptz_joystick.log` ne
 ```
 
 A camera outage logs one warning when it starts and one line when the camera is back, not one line per retry.
-While the camera is down, moves keep retrying. A preset the camera refuses 3 times is dropped, so it can't fire minutes later.
+While the camera is down, stick moves keep retrying. A button action (like a preset recall) the camera refuses 3 times is dropped, so it can't fire minutes later.
 
 To see what happened during a session, check the file afterwards. Set `debug = true` for the full detail.
 
@@ -203,4 +203,4 @@ The two ports are `typing.Protocol` classes, so an adapter only needs the right 
 | New button action (home, focus, …) | 1. Add a dataclass in `commands.py` and add it to the `Command` union<br>2. Register its name in `COMMANDS` in `config.py`, then map a button to it in `ptz_joystick.toml`<br>3. Add a `case` for it in `cameras/ptzoptics.py` `to_query()` |
 | Speed curve / deadzone behaviour | `mapping.py` only, covered by `tests/test_mapping.py` |
 
-If a camera adapter gets a command it can't handle, it raises. The sender logs the error, drops that command and keeps running, so stop commands still reach the camera.
+If a camera adapter raises `TypeError` (a command it can't do at all), the sender logs it and drops that command. Any other error from an adapter counts as a refusal and is retried, so a network error can never lose a stop.
