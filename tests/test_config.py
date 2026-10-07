@@ -7,7 +7,7 @@ from pathlib import Path
 from unittest import mock
 
 from ptz_joystick import config
-from ptz_joystick.commands import Preset
+from ptz_joystick.commands import PanTilt, Preset
 from ptz_joystick.config import Settings
 
 
@@ -26,6 +26,7 @@ class ValidationTest(unittest.TestCase):
             ({"timeout": 0}, "timeout"),
             ({"host": "192.168.77.3"}, "host"),              # missing http://
             ({"buttons": {0: 1}}, "buttons"),                # not a command
+            ({"buttons": {0: PanTilt(1, 0)}}, "buttons"),    # a button-started move would never stop
         ]:
             with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, word):
                 Settings(**bad)

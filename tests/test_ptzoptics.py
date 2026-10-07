@@ -1,14 +1,23 @@
 import unittest
 from types import SimpleNamespace
+from typing import get_args
 from unittest import mock
 
 import requests
 
 from ptz_joystick.cameras.ptzoptics import PtzOpticsCamera, to_query
-from ptz_joystick.commands import PanTilt, Preset, Zoom
+from ptz_joystick.commands import Command, PanTilt, Preset, Zoom
+
+EXAMPLES = [PanTilt(3, -4), Zoom(-3), Preset(4)]    # one of each command type
 
 
 class ToQueryTest(unittest.TestCase):
+    def test_every_command_type_translates(self):
+        self.assertEqual({type(c) for c in EXAMPLES}, set(get_args(Command)), "new command type? add an example")
+        for cmd in EXAMPLES:
+            with self.subTest(cmd=cmd):
+                self.assertTrue(to_query(cmd).startswith("ptzcmd&"))
+
     def test_pantilt(self):
         self.assertEqual(to_query(PanTilt(0, 0)), "ptzcmd&ptzstop&0&0")
         self.assertEqual(to_query(PanTilt(-24, 20)), "ptzcmd&leftup&24&20")

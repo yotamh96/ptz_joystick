@@ -28,6 +28,11 @@ JOY_RETURNALL = 0xFF
 HAS_AXIS = {"Z": 1, "R": 2, "U": 4, "V": 8}     # JOYCAPS_HASZ/R/U/V; X and Y always exist
 
 
+def _caps(dev):
+    caps = JOYCAPSW()
+    return caps if winmm.joyGetDevCapsW(dev, ctypes.byref(caps), ctypes.sizeof(caps)) == 0 else None
+
+
 def _pos(dev):
     info = JOYINFOEX(dwSize=ctypes.sizeof(JOYINFOEX), dwFlags=JOY_RETURNALL)
     return info if winmm.joyGetPosEx(dev, ctypes.byref(info)) == 0 else None
@@ -35,8 +40,8 @@ def _pos(dev):
 
 class WinmmController:
     def __init__(self, dev):
-        caps = JOYCAPSW()
-        if winmm.joyGetDevCapsW(dev, ctypes.byref(caps), ctypes.sizeof(caps)) != 0:
+        caps = _caps(dev)
+        if caps is None:
             raise OSError(f"joystick {dev}: no caps")
         self.dev = dev
         # a missing axis would read 0 = -1.0 = full speed forever, so only present axes are reported

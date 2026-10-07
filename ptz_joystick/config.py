@@ -5,11 +5,13 @@ import tomllib
 from dataclasses import dataclass, field, fields, replace
 from pathlib import Path
 
-from .commands import Command, Preset
+from .commands import MOVES, Command, Preset
 
 AXES = "XYZRUV"
 FILE_NAME = "ptz_joystick.toml"
-COMMANDS = {"preset": Preset}           # name used in the settings file -> command class
+# Settings-file name -> command a button may fire. Actions only: a stick move started by a button would never
+# be stopped, because the sticks only stop moves they started.
+BUTTON_COMMANDS = {"preset": Preset}
 
 
 @dataclass(frozen=True)
@@ -53,8 +55,9 @@ class Settings:
             check(isinstance(v, int) and v >= 1, f"{name} must be a whole number >= 1, got {v!r}")
         check(self.timeout > 0, f"timeout must be > 0 seconds, got {self.timeout!r}")
         check(self.host.startswith(("http://", "https://")), f"host must start with http://, got {self.host!r}")
-        bad = {b: c for b, c in self.buttons.items() if not (isinstance(b, int) and 0 <= b < 32 and isinstance(c, Command))}
-        check(not bad, f"buttons must map a button index 0-31 to a command, bad: {bad}")
+        bad = {b: c for b, c in self.buttons.items()
+               if not (isinstance(b, int) and 0 <= b < 32 and isinstance(c, Command) and not isinstance(c, MOVES))}
+        check(not bad, f"buttons must map a button index 0-31 to a button action (not a stick move), bad: {bad}")
 
 
 TEMPLATE = """\
@@ -108,11 +111,11 @@ def write_template_if_missing(path: Path) -> bool:
 def parse_command(text) -> Command:
     """'preset 1' -> Preset(1)."""
     words = text.split() if isinstance(text, str) else []
-    cls = COMMANDS.get(words[0].lower()) if words else None
+    cls = BUTTON_COMMANDS.get(words[0].lower()) if words else None
     try:
         return cls(*map(int, words[1:]))
     except (TypeError, ValueError):
-        raise ValueError(f"bad command {text!r}, use one of: {', '.join(f'{n} N' for n in COMMANDS)}") from None
+        raise ValueError(f"bad command {text!r}, use one of: {', '.join(f'{n} N' for n in BUTTON_COMMANDS)}") from None
 
 
 def parse_buttons(table: dict) -> dict:

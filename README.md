@@ -189,18 +189,40 @@ tests/               unit tests with fake controller / camera
 
 Paths below are inside `ptz_joystick/` unless they start with `tests/`.
 
-The two ports are `typing.Protocol` classes, so an adapter only needs the right method; no base class:
+The two ports are `typing.Protocol` classes, so an adapter only needs the right method; no base class. Their docstrings hold the full rules an adapter must follow:
 
-- `Controller.read() -> ControllerState | None` (None = unplugged)
-- `Camera.send(cmd: Command) -> bool` (True = camera accepted)
+- `Controller.read() -> ControllerState | None` in `controllers/__init__.py` (None = unplugged)
+- `Camera.send(cmd: Command) -> bool` in `cameras/__init__.py` (True = camera took it)
+
+The rules for commands are at the top of `commands.py`.
 
 ## Extending
 
-| Change | Where |
-|---|---|
-| New camera brand (e.g. VISCA over IP) | Add `cameras/<name>.py` with a `send(cmd) -> bool`, then change the one `PtzOpticsCamera(...)` line in `app.py` |
-| New controller type (XInput, pygame) | Add `controllers/<name>.py` with a `read()`, then change the `discover()` line in `app.py` |
-| New button action (home, focus, …) | 1. Add a dataclass in `commands.py` and add it to the `Command` union<br>2. Register its name in `COMMANDS` in `config.py`, then map a button to it in `ptz_joystick.toml`<br>3. Add a `case` for it in `cameras/ptzoptics.py` `to_query()` |
-| Speed curve / deadzone behaviour | `mapping.py` only, covered by `tests/test_mapping.py` |
+### New camera brand (e.g. VISCA over IP)
+
+1. Read the rules on `Camera.send` in `cameras/__init__.py`.
+2. Add `cameras/<name>.py` with a class that has `send(cmd) -> bool`.
+3. Add `tests/test_<name>.py`. Copy the checks in `tests/test_ptzoptics.py`: every command type translates, an outage logs once, a wrong login says so.
+4. In `app.py`, build it instead of `PtzOpticsCamera(...)`. New settings go in `Settings` and `TEMPLATE` in `config.py`.
 
 If a camera adapter raises `TypeError` (a command it can't do at all), the sender logs it and drops that command. Any other error from an adapter counts as a refusal and is retried, so a network error can never lose a stop.
+
+### New controller type (XInput, pygame)
+
+1. Read the rules on `Controller.read` in `controllers/__init__.py`.
+2. Add `controllers/<name>.py` with a class that has `read()`, and a function that returns a ready controller (like `winmm.discover()`).
+3. Add `tests/test_<name>.py`. Copy the checks in `tests/test_winmm.py`: only real axes, scaled to -1..1, `None` when unplugged.
+4. In `app.py`, call your function instead of `discover()`.
+
+### New button action (home, focus, …)
+
+1. Read the rules at the top of `commands.py`: a complete instruction that is safe to send twice.
+2. Add a frozen dataclass there and add it to `Command`.
+3. Give it a name in `BUTTON_COMMANDS` in `config.py`, then map a button to it in `ptz_joystick.toml`.
+4. Add a `case` for it in `to_query()` in `cameras/ptzoptics.py`, and an example in `tests/test_ptzoptics.py`. That test fails until you do both.
+
+The sender needs no change: anything that isn't a stick move gets 3 tries, then is dropped.
+
+### Speed curve / deadzone behaviour
+
+`mapping.py` only, covered by `tests/test_mapping.py`.
