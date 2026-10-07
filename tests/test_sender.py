@@ -164,7 +164,7 @@ class SenderTest(unittest.TestCase):
         cam = NoOdd()
         s = CommandSender(cam, backoff=0.01)
         with self.assertLogs("ptz_joystick.sender", "WARNING"):
-            s.send(Odd([1]))
+            s.send(Odd([1]))                           # type: ignore[arg-type]  # deliberately not a Command
             self.assertTrue(wait_idle(s, timeout=1))
         self.assertTrue(s.drain_with([PanTilt(0, 0)], timeout=1))
         self.assertEqual(cam.calls[-1], PanTilt(0, 0))
@@ -177,7 +177,7 @@ class SenderTest(unittest.TestCase):
         cam = FakeCamera(fail_first=10**6)
         s = CommandSender(cam, backoff=0.01)
         with self.assertLogs("ptz_joystick.sender", "WARNING") as logs:
-            s.send(Home())
+            s.send(Home())                             # type: ignore[arg-type]  # deliberately not a Command
             self.assertTrue(wait_idle(s, timeout=1))
         self.assertEqual(cam.calls, [Home()] * 3)
         self.assertIn("gave up", logs.output[-1])

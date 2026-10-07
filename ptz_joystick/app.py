@@ -21,7 +21,8 @@ log = logging.getLogger(__name__)
 
 def setup_logging(s: Settings):
     """Terminal always; plus s.log_file if set. debug=True adds per-command and per-reading lines."""
-    handlers, file_error = [logging.StreamHandler()], None
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    file_error: OSError | None = None
     if s.log_file:
         try:
             handlers.append(logging.FileHandler(s.log_file, encoding="utf-8"))
@@ -66,10 +67,10 @@ def main(argv=None):
     camera = PtzOpticsCamera(s.host, s.user, s.password, s.timeout)
     check_camera(camera, s.host, path)
     controller = discover()
-    state = controller.read()
-    missing = [a for a in (s.pan_axis, s.tilt_axis, s.zoom_axis) if state and a not in state.axes]
-    if missing:
-        raise SystemExit(f"Controller has no axis {missing} (has {list(state.axes)}). Fix the axes in {path}.")
+    if state := controller.read():
+        missing = [a for a in (s.pan_axis, s.tilt_axis, s.zoom_axis) if a not in state.axes]
+        if missing:
+            raise SystemExit(f"Controller has no axis {missing} (has {list(state.axes)}). Fix the axes in {path}.")
     sender = CommandSender(camera)
 
     def console_closing():

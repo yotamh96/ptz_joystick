@@ -15,12 +15,12 @@ class JOYINFOEX(ctypes.Structure):
 
 
 class JOYCAPSW(ctypes.Structure):
-    _fields_ = ([("wMid", ctypes.c_uint16), ("wPid", ctypes.c_uint16), ("szPname", ctypes.c_wchar * 32)]
-                + [(n, ctypes.c_uint32) for n in (
+    _fields_ = [("wMid", ctypes.c_uint16), ("wPid", ctypes.c_uint16), ("szPname", ctypes.c_wchar * 32),
+                *[(n, ctypes.c_uint32) for n in (
                     "wXmin", "wXmax", "wYmin", "wYmax", "wZmin", "wZmax", "wNumButtons", "wPeriodMin",
                     "wPeriodMax", "wRmin", "wRmax", "wUmin", "wUmax", "wVmin", "wVmax", "wCaps",
-                    "wMaxAxes", "wNumAxes", "wMaxButtons")]
-                + [("szRegKey", ctypes.c_wchar * 32), ("szOEMVxD", ctypes.c_wchar * 260)])
+                    "wMaxAxes", "wNumAxes", "wMaxButtons")],
+                ("szRegKey", ctypes.c_wchar * 32), ("szOEMVxD", ctypes.c_wchar * 260)]
 
 
 winmm = ctypes.WinDLL("winmm")
@@ -48,7 +48,7 @@ class WinmmController:
         self._ranges = {a: (getattr(caps, f"w{a}min"), getattr(caps, f"w{a}max"))
                         for a in "XYZRUV" if a in "XY" or caps.wCaps & HAS_AXIS[a]}
 
-    def read(self):
+    def read(self) -> ControllerState | None:
         info = _pos(self._dev)
         if info is None:
             return None
@@ -57,9 +57,9 @@ class WinmmController:
         return ControllerState(axes, info.dwButtons)
 
 
-def discover():
+def discover() -> WinmmController:
     """Wait for the user to move a stick and return that device (Windows often lists phantom IDs)."""
-    found = {}
+    found: dict[int, WinmmController] = {}
     for d in range(16):
         if _pos(d):
             try:

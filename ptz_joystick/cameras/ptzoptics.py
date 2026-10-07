@@ -11,6 +11,7 @@ log = logging.getLogger(__name__)
 
 def to_query(cmd: Command) -> str:
     """Command -> the ptzctrl.cgi query string."""
+    parts: tuple[str | int, ...]
     match cmd:
         case PanTilt(0, 0):
             parts = ("ptzstop", 0, 0)

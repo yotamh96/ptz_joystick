@@ -4,6 +4,7 @@ import tomllib
 import unittest
 from dataclasses import fields
 from pathlib import Path
+from typing import Any
 from unittest import mock
 
 from ptz_joystick import config
@@ -16,7 +17,7 @@ class ValidationTest(unittest.TestCase):
         Settings()
 
     def test_bad_values_named_in_error(self):
-        for bad, word in [
+        cases: list[tuple[dict[str, Any], str]] = [
             ({"full_speed_at": 0.15}, "full_speed_at"),      # == deadzone: would divide by zero
             ({"deadzone": 0.8}, "deadzone"),                 # above full_speed_at
             ({"full_speed_at": 1.2}, "full_speed_at"),
@@ -27,7 +28,8 @@ class ValidationTest(unittest.TestCase):
             ({"host": "192.168.77.3"}, "host"),              # missing http://
             ({"buttons": {0: 1}}, "buttons"),                # not a command
             ({"buttons": {0: PanTilt(1, 0)}}, "buttons"),    # a button-started move would never stop
-        ]:
+        ]
+        for bad, word in cases:
             with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, word):
                 Settings(**bad)
 

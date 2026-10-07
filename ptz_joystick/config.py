@@ -4,6 +4,7 @@ import sys
 import tomllib
 from dataclasses import dataclass, field, fields, replace
 from pathlib import Path
+from typing import Any, cast
 
 from .commands import MOVES, Command, Preset
 
@@ -112,10 +113,12 @@ def parse_command(text) -> Command:
     """'preset 1' -> Preset(1)."""
     words = text.split() if isinstance(text, str) else []
     cls = BUTTON_COMMANDS.get(words[0].lower()) if words else None
-    try:
-        return cls(*map(int, words[1:]))
-    except (TypeError, ValueError):
-        raise ValueError(f"bad command {text!r}, use one of: {', '.join(f'{n} N' for n in BUTTON_COMMANDS)}") from None
+    if cls is not None:
+        try:
+            return cls(*map(int, words[1:]))
+        except (TypeError, ValueError):         # wrong number of values, or not whole numbers
+            pass
+    raise ValueError(f"bad command {text!r}, use one of: {', '.join(f'{n} N' for n in BUTTON_COMMANDS)}")
 
 
 def parse_buttons(table: dict) -> dict:
@@ -130,18 +133,21 @@ def parse_buttons(table: dict) -> dict:
 TYPE_NAMES = {str: "text in quotes", int: "a whole number", float: "a number", bool: "true or false", dict: "a [table]"}
 
 
+def has_type(v, want: type) -> bool:
+    """isinstance, except true/false is not a number, and a whole number is fine where a float is wanted."""
+    return isinstance(v, bool) == (want is bool) and isinstance(v, (int, float) if want is float else want)
+
+
 def from_dict(d: dict, password: str) -> Settings:
-    known = {f.name: f.type for f in fields(Settings) if f.name != "password"}
-    values = {"password": password}
+    known = {f.name: cast(type, f.type) for f in fields(Settings) if f.name != "password"}   # classes, not strings
+    values: dict[str, Any] = {"password": password}     # each value checked below, then by Settings itself
     for key, v in d.items():
         if key == "password":
             raise ValueError('password must not be in the settings file, use:  setx PTZ_PASSWORD "..."')
         if key not in known:
             raise ValueError(f"unknown setting {key!r}")
-        want = known[key]
-        types = (int, float) if want is float else want     # 1 is fine where 1.0 is expected
-        if isinstance(v, bool) != (want is bool) or not isinstance(v, types):
-            raise ValueError(f"{key} must be {TYPE_NAMES[want]}, got {v!r}")
+        if not has_type(v, known[key]):
+            raise ValueError(f"{key} must be {TYPE_NAMES[known[key]]}, got {v!r}")
         values[key] = parse_buttons(v) if key == "buttons" else v
     return Settings(**values)
 

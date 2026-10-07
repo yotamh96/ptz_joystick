@@ -120,18 +120,21 @@ python -m unittest discover tests
 
 These need no camera and no controller. Fakes stand in for both.
 
-Lint (CI runs the same check):
+Lint and type check (CI runs the same):
 
 ```powershell
-pip install ruff==0.16.10
+pip install ruff==0.16.10 mypy==2.4.0 types-requests==2.33.0.20261006
 ruff check .
+mypy
 ```
+
+`mypy` reads its settings from `mypy.ini`. It is what checks that every camera and controller matches its Protocol.
 
 ## Releases
 
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push and PR:
 
-1. `lint`: `ruff check`
+1. `lint`: `ruff check` and `mypy`
 2. `test`: the unit tests on Python 3.11 and 3.14, on Windows
 3. `build`: PyInstaller → `ptz_joystick.exe`, signed, smoke-tested (it must write `ptz_joystick.toml` next to itself and reach the password check). Download it from the run's **Artifacts**.
 
@@ -189,7 +192,7 @@ tests/               unit tests with fake controller / camera
 
 Paths below are inside `ptz_joystick/` unless they start with `tests/`.
 
-The two ports are `typing.Protocol` classes, so an adapter only needs the right method; no base class. Their docstrings hold the full rules an adapter must follow:
+The two ports are `typing.Protocol` classes, so an adapter only needs the right method; no base class. `mypy` checks that each adapter matches, at the spot where `app.py` plugs it in. The Protocols' docstrings hold the full rules an adapter must follow:
 
 - `Controller.read() -> ControllerState | None` in `controllers/__init__.py` (None = unplugged)
 - `Camera.send(cmd: Command) -> bool` in `cameras/__init__.py` (True = camera took it)
@@ -203,16 +206,16 @@ The rules for commands are at the top of `commands.py`.
 1. Read the rules on `Camera.send` in `cameras/__init__.py`.
 2. Add `cameras/<name>.py` with a class that has `send(cmd) -> bool`.
 3. Add `tests/test_<name>.py`. Copy the checks in `tests/test_ptzoptics.py`: every command type translates, an outage logs once, a wrong login says so.
-4. In `app.py`, build it instead of `PtzOpticsCamera(...)`. New settings go in `Settings` and `TEMPLATE` in `config.py`.
+4. In `app.py`, build it instead of `PtzOpticsCamera(...)`; `mypy` then checks it against `Camera`. New settings go in `Settings` and `TEMPLATE` in `config.py`.
 
 If a camera adapter raises `TypeError` (a command it can't do at all), the sender logs it and drops that command. Any other error from an adapter counts as a refusal and is retried, so a network error can never lose a stop.
 
 ### New controller type (XInput, pygame)
 
 1. Read the rules on `Controller.read` in `controllers/__init__.py`.
-2. Add `controllers/<name>.py` with a class that has `read()`, and a function that returns a ready controller (like `winmm.discover()`).
+2. Add `controllers/<name>.py` with a class that has `read()`, and a function that returns a ready controller (like `winmm.discover()`). Annotate that function's return type, or `mypy` can't check it.
 3. Add `tests/test_<name>.py`. Copy the checks in `tests/test_winmm.py`: only real axes, scaled to -1..1, `None` when unplugged.
-4. In `app.py`, call your function instead of `discover()`.
+4. In `app.py`, call your function instead of `discover()`; `mypy` then checks the controller against `Controller`.
 
 ### New button action (home, focus, …)
 

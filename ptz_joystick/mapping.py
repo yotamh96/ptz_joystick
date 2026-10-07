@@ -1,7 +1,7 @@
 """Pure stick -> command logic. No I/O, so every rule here is unit-tested."""
 from dataclasses import astuple
 
-from .commands import PanTilt, Zoom
+from .commands import Command, PanTilt, Zoom
 from .config import Settings
 from .controllers import ControllerState
 
@@ -30,7 +30,7 @@ class Mapper:
 
     def __init__(self, settings: Settings):
         self._settings = settings
-        self._last = {}          # command type -> last command sent
+        self._last: dict[type, Command] = {}    # command type -> last command sent
         self._buttons = 0
 
     def update(self, state: ControllerState | None):

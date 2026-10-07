@@ -14,7 +14,7 @@ CTRL_C_EVENT, CTRL_BREAK_EVENT = 0, 1
 class HandlerTest(unittest.TestCase):
     def test_close_logoff_shutdown_run_callback(self):
         for event in (CTRL_CLOSE_EVENT, CTRL_LOGOFF_EVENT, CTRL_SHUTDOWN_EVENT):
-            calls = []
+            calls: list[int] = []
             handler = make_handler(functools.partial(calls.append, 1))
             with self.subTest(event=event):
                 self.assertTrue(handler(event))

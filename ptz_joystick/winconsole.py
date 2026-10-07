@@ -11,7 +11,7 @@ log = logging.getLogger(__name__)
 
 CTRL_CLOSE_EVENT, CTRL_LOGOFF_EVENT, CTRL_SHUTDOWN_EVENT = 2, 5, 6
 _HandlerRoutine = ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.DWORD)
-_registered = []        # keep the ctypes callbacks alive, or Windows calls freed memory
+_registered: list[object] = []     # keep the ctypes callbacks alive, or Windows calls freed memory
 
 
 def make_handler(callback):

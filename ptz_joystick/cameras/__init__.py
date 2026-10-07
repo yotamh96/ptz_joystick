@@ -1,12 +1,11 @@
 """Camera port: the one thing the core needs from a camera. The core never imports an adapter."""
-from typing import Protocol, runtime_checkable
+from typing import Protocol
 
 from ..commands import Command
 
 
-@runtime_checkable
 class Camera(Protocol):
-    def send(self, cmd: Command) -> bool:
+    def send(self, cmd: Command, /) -> bool:
         """Send one command from commands.py. True = the camera took it.
 
         Rules for an adapter:
@@ -18,4 +17,6 @@ class Camera(Protocol):
           sender drops it.
         - Return within about a second (use a timeout): at shutdown the stops get 3 s in total.
         - Called from one thread at a time, so no locking needed.
+
+        mypy (in CI) checks that adapters match this signature. The "/" means the parameter's name is free.
         """

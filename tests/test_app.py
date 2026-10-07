@@ -7,12 +7,9 @@ from pathlib import Path
 from unittest import mock
 
 from ptz_joystick.app import check_camera, run, setup_logging
-from ptz_joystick.cameras import Camera
-from ptz_joystick.cameras.ptzoptics import PtzOpticsCamera
 from ptz_joystick.commands import PanTilt, Zoom
 from ptz_joystick.config import Settings
-from ptz_joystick.controllers import Controller, ControllerState
-from ptz_joystick.controllers.winmm import WinmmController
+from ptz_joystick.controllers import ControllerState
 from ptz_joystick.sender import CommandSender
 
 
@@ -39,14 +36,6 @@ class RecordingCamera:
 
 def moving(x=0.0, r=0.0):
     return ControllerState({"X": x, "Y": 0.0, "R": r}, 0)
-
-
-class InterfacesTest(unittest.TestCase):
-    def test_adapters_fit_the_ports(self):
-        self.assertTrue(issubclass(PtzOpticsCamera, Camera))
-        self.assertTrue(issubclass(WinmmController, Controller))
-        self.assertTrue(issubclass(RecordingCamera, Camera))
-        self.assertTrue(issubclass(ScriptedController, Controller))
 
 
 class RunTest(unittest.TestCase):

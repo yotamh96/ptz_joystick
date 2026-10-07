@@ -19,17 +19,18 @@ class FakeResponse:
         return self.data
 
 
-def fake_get(response=None, error=None):
-    calls = []
+class FakeGet:
+    """Stands in for requests.get: returns `response` or raises `error`, and records each URL asked for."""
 
-    def get(url, **kw):
-        calls.append(url)
-        if error:
-            raise error
-        return response
+    def __init__(self, response=None, error=None):
+        self.response, self.error = response, error
+        self.calls: list[str] = []
 
-    get.calls = calls
-    return get
+    def __call__(self, url, **kw):
+        self.calls.append(url)
+        if self.error:
+            raise self.error
+        return self.response
 
 
 def release(tag):
@@ -46,28 +47,28 @@ class ParseTest(unittest.TestCase):
 
 class NewerReleaseTest(unittest.TestCase):
     def test_newer_found(self):
-        self.assertEqual(updates.newer_release("v0.2.0", fake_get(release("v0.10.0"))),
+        self.assertEqual(updates.newer_release("v0.2.0", FakeGet(release("v0.10.0"))),
                          ("v0.10.0", "https://example/v0.10.0"))   # numeric, not text, comparison
 
     def test_same_or_older_is_none(self):
         for tag in ("v0.2.0", "v0.1.9"):
             with self.subTest(tag=tag):
-                self.assertIsNone(updates.newer_release("v0.2.0", fake_get(release(tag))))
+                self.assertIsNone(updates.newer_release("v0.2.0", FakeGet(release(tag))))
 
     def test_dev_never_asks(self):
-        get = fake_get(release("v9.9.9"))
+        get = FakeGet(release("v9.9.9"))
         self.assertIsNone(updates.newer_release("dev", get))
         self.assertEqual(get.calls, [])
 
     def test_any_failure_is_none_not_exception(self):
         for name, get in [
-            ("timeout", fake_get(error=requests.Timeout("slow"))),
-            ("offline", fake_get(error=requests.ConnectionError("no network"))),
-            ("rate limited", fake_get(FakeResponse(403))),
-            ("bad json", fake_get(FakeResponse(bad_json=True))),
-            ("no tag", fake_get(FakeResponse(data={"message": "Not Found"}))),
-            ("list", fake_get(FakeResponse(data=[]))),
-            ("odd tag", fake_get(release("nightly"))),
+            ("timeout", FakeGet(error=requests.Timeout("slow"))),
+            ("offline", FakeGet(error=requests.ConnectionError("no network"))),
+            ("rate limited", FakeGet(FakeResponse(403))),
+            ("bad json", FakeGet(FakeResponse(bad_json=True))),
+            ("no tag", FakeGet(FakeResponse(data={"message": "Not Found"}))),
+            ("list", FakeGet(FakeResponse(data=[]))),
+            ("odd tag", FakeGet(release("nightly"))),
         ]:
             with self.subTest(name), self.assertNoLogs("ptz_joystick.updates", "INFO"):
                 self.assertIsNone(updates.newer_release("v0.2.0", get))
@@ -76,13 +77,13 @@ class NewerReleaseTest(unittest.TestCase):
 class BackgroundTest(unittest.TestCase):
     def test_logs_update_line(self):
         with self.assertLogs("ptz_joystick.updates", "INFO") as logs:
-            updates.check_in_background("v0.2.0", fake_get(release("v0.3.0"))).join(5)
+            updates.check_in_background("v0.2.0", FakeGet(release("v0.3.0"))).join(5)
         self.assertEqual(len(logs.output), 1)
         self.assertIn("Update available: v0.3.0 (you have v0.2.0) https://example/v0.3.0", logs.output[0])
 
     def test_silent_when_current(self):
         with self.assertNoLogs("ptz_joystick.updates", "INFO"):
-            updates.check_in_background("v0.3.0", fake_get(release("v0.3.0"))).join(5)
+            updates.check_in_background("v0.3.0", FakeGet(release("v0.3.0"))).join(5)
 
 
 if __name__ == "__main__":

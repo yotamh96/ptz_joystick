@@ -18,8 +18,8 @@ GIVE_UP_AFTER = 3
 class CommandSender:
     def __init__(self, camera: Camera, backoff=0.2):
         self._camera, self._backoff = camera, backoff
-        self._pending = {}           # command type -> latest command
-        self._tries = {}             # command type -> (command, refusals so far); sender thread only
+        self._pending: dict[type, Command] = {}             # command type -> latest command
+        self._tries: dict[type, tuple[Command, int]] = {}   # command type -> (command, refusals); sender thread only
         self._closed = False         # set by drain_with: nothing may follow the final stops
         self._cv = threading.Condition()
         threading.Thread(target=self._run, daemon=True).start()

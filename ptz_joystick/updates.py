@@ -10,7 +10,7 @@ LATEST = "https://api.github.com/repos/yotamh96/ptz_joystick/releases/latest"   
 log = logging.getLogger(__name__)
 
 
-def parse(tag) -> tuple[int, int, int] | None:
+def parse(tag) -> tuple[int, ...] | None:
     """'v0.3.0' -> (0, 3, 0). Anything else ('dev', 'main', 'v1.2') -> None."""
     m = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", tag) if isinstance(tag, str) else None
     return tuple(map(int, m.groups())) if m else None

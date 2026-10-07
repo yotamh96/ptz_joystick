@@ -8,7 +8,7 @@ import requests
 from ptz_joystick.cameras.ptzoptics import PtzOpticsCamera, to_query
 from ptz_joystick.commands import Command, PanTilt, Preset, Zoom
 
-EXAMPLES = [PanTilt(3, -4), Zoom(-3), Preset(4)]    # one of each command type
+EXAMPLES: list[Command] = [PanTilt(3, -4), Zoom(-3), Preset(4)]    # one of each command type
 
 
 class ToQueryTest(unittest.TestCase):
