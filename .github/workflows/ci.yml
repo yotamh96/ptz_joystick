@@ -22,7 +22,7 @@ jobs:
     runs-on: windows-latest
     strategy:
       matrix:
-        python: ["3.10", "3.14"]         # README promises 3.10+; developed on 3.14
+        python: ["3.11", "3.14"]         # README promises 3.11+ (tomllib); developed on 3.14
     steps:
       - uses: actions/checkout@v7
         with: { path: ptz_joystick }
@@ -74,6 +74,8 @@ jobs:
           if ($LASTEXITCODE -ne 1 -or $out -notmatch "Set the camera password first") {
             throw "unexpected exit $LASTEXITCODE`n$out"
           }
+          # The settings template is written before the password check. cwd isn't dist\, so this proves it lands next to the exe.
+          if (-not (Test-Path dist\ptz_joystick.toml)) { throw "exe did not create dist\ptz_joystick.toml" }
           exit 0
 
       - uses: actions/upload-artifact@v7

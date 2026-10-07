@@ -1,6 +1,8 @@
 """Composition root: the only place that builds hardware objects. Swap an adapter here."""
+import argparse
 import logging
 import time
+from pathlib import Path
 
 from . import config
 from .cameras import Camera
@@ -31,11 +33,11 @@ def setup_logging(s: Settings):
         log.warning("Can't write log file %s (%s): terminal only.", s.log_file, file_error)
 
 
-def check_camera(camera: Camera, host: str):
+def check_camera(camera: Camera, host: str, settings_path: Path):
     """Send a harmless stop, so a wrong address or password fails now instead of mid-session."""
     if not camera.send(PanTilt(0, 0)):
         raise SystemExit(f"Camera at {host} did not accept a stop command (reason logged above). "
-                         "Check host in config.py, the network, and PTZ_PASSWORD.")
+                         f"Check host in {settings_path}, the network, and PTZ_PASSWORD.")
 
 
 def stop_camera(sender: CommandSender):
@@ -45,16 +47,24 @@ def stop_camera(sender: CommandSender):
         log.error("Camera did not confirm stop.")
 
 
-def main():
-    s = config.load()
+def main(argv=None):
+    parser = argparse.ArgumentParser(prog="ptz_joystick", description="Drive a PTZOptics camera with a game controller.")
+    parser.add_argument("--config", type=Path, default=config.default_path(),
+                        help=f"settings file (default: {config.default_path()})")
+    path = parser.parse_args(argv).config
+    created = config.write_template_if_missing(path)
+    s = config.load(path)
     setup_logging(s)
+    if created:
+        log.info("Wrote default settings to %s. Edit it and restart to change them.", path)
+    log.info("Settings: %s", path)
     camera = PtzOpticsCamera(s.host, s.user, s.password, s.timeout)
-    check_camera(camera, s.host)
+    check_camera(camera, s.host, path)
     controller = discover()
     state = controller.read()
     missing = [a for a in (s.pan_axis, s.tilt_axis, s.zoom_axis) if state and a not in state.axes]
     if missing:
-        raise SystemExit(f"Controller has no axis {missing} (has {list(state.axes)}). Fix the axes in config.py.")
+        raise SystemExit(f"Controller has no axis {missing} (has {list(state.axes)}). Fix the axes in {path}.")
     sender = CommandSender(camera)
 
     def console_closing():

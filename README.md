@@ -6,7 +6,7 @@ The controller is read through the Windows joystick API (the same data `joy.cpl`
 
 ## Setup
 
-Needs Python 3.10+ (developed on 3.14).
+Needs Python 3.11+ (developed on 3.14).
 
 ```powershell
 pip install -r ptz_joystick\requirements.txt
@@ -15,7 +15,7 @@ setx PTZ_PASSWORD "your-camera-password"
 
 `setx` only applies to new terminals, so open a new one after running it.
 
-**No Python?** Download `ptz_joystick.exe` from the latest GitHub Release, run the `setx` line, then run the exe from a new terminal. The exe carries the `config.py` settings it was built with. To change a setting, edit `config.py` and make a new release (see [Releases](#releases)).
+**No Python?** Download `ptz_joystick.exe` from the latest GitHub Release, run the `setx` line, then run the exe from a new terminal. The first run creates `ptz_joystick.toml` next to the exe. Edit it to change settings; no rebuild needed.
 
 ## Run
 
@@ -42,25 +42,29 @@ python -m ptz_joystick
 
 ## Settings
 
-All settings are in [`config.py`](config.py). Edit the default values there.
+Settings live in `ptz_joystick.toml`: next to `ptz_joystick.exe`, or inside the `ptz_joystick\` folder when run with Python. If it's missing, the first run writes it with every setting, its default and a comment. Edit it, save, restart.
+
+To use a different file: `python -m ptz_joystick --config D:\cams\studio2.toml` (same flag for the exe).
+
+A misspelled setting, a wrong type (`"24"` instead of `24`) or a `password` line stops startup with a message naming the file and the setting. The password only comes from `PTZ_PASSWORD`.
 
 | Setting | Default | What it does |
 |---|---|---|
-| `host` | `http://192.168.77.3` | Camera address |
-| `user` | `admin` | Camera user. The password always comes from `PTZ_PASSWORD` |
+| `host` | `"http://192.168.77.3"` | Camera address |
+| `user` | `"admin"` | Camera user. The password always comes from `PTZ_PASSWORD` |
 | `timeout` | `1.0` | Seconds to wait for each camera request |
 | `pan_axis` / `tilt_axis` / `zoom_axis` | `X` / `Y` / `R` | Which controller axis does what (`X Y Z R U V`) |
-| `invert_tilt` / `invert_zoom` | `True` | Flip direction if up/down feels backwards |
+| `invert_tilt` / `invert_zoom` | `true` | Flip direction if up/down feels backwards |
 | `deadzone` | `0.15` | Stick readings at or below this are ignored |
 | `full_speed_at` | `0.7` | Stick reading that gives top speed. The current pad tops out at about 0.75, not 1.0 |
 | `pan_max` / `tilt_max` / `zoom_max` | `24` / `20` / `7` | Camera's top speeds |
-| `buttons` | `{0: Preset(1), …}` | Button index → command. Index 0 is "button 1" in `joy.cpl` |
-| `debug` | `False` | `True` logs every stick reading and every command sent |
-| `log_file` | `ptz_joystick.log` | Log file, appended in the folder you run from. `""` = terminal only |
+| `[buttons]` | `0 = "preset 1"` … `3 = "preset 4"` | Button index → command. Index 0 is "button 1" in `joy.cpl` |
+| `debug` | `false` | `true` logs every stick reading and every command sent |
+| `log_file` | `"ptz_joystick.log"` | Log file, appended next to `ptz_joystick.toml` (so next to the exe). A full path goes there instead: `log_file = 'D:\logs\ptz.log'` (single quotes, so the backslashes stay as typed). `""` = terminal only |
 
 ## Logs
 
-Every line has a timestamp and goes to the terminal and to `ptz_joystick.log`:
+Every line has a timestamp and goes to the terminal and to `ptz_joystick.log` next to the settings file:
 
 ```
 14:02:11 INFO    Using joystick ID 0
@@ -74,7 +78,7 @@ Every line has a timestamp and goes to the terminal and to `ptz_joystick.log`:
 A camera outage logs one warning when it starts and one line when the camera is back, not one line per retry.
 While the camera is down, moves keep retrying. A preset the camera refuses 3 times is dropped, so it can't fire minutes later.
 
-To see what happened during a session, check the file afterwards. Set `debug=True` for the full detail.
+To see what happened during a session, check the file afterwards. Set `debug = true` for the full detail.
 
 ## Troubleshooting
 
@@ -83,14 +87,15 @@ To see what happened during a session, check the file afterwards. Set `debug=Tru
 | `Set the camera password first` | Run `setx PTZ_PASSWORD "..."`, then **open a new terminal** |
 | `No controller found` | Open `joy.cpl` (Win+R). If the controller isn't listed or its crosshair doesn't move there, it's a cable, receiver or driver problem, not this tool |
 | Stuck at `Move the left stick now...` | Move the stick fully. The tool picks the first controller whose stick moves more than 0.3 |
-| `Controller has no axis [...]` | Set `debug=True`, run, move each stick, and see which letter changes. Put those letters in `pan_axis` / `tilt_axis` / `zoom_axis` |
-| Camera never reaches full speed | Set `debug=True` and push the stick to its edge. Set `full_speed_at` a little below the highest value you see |
+| `Controller has no axis [...]` | Set `debug = true`, run, move each stick, and see which letter changes. Put those letters in `pan_axis` / `tilt_axis` / `zoom_axis` |
+| Camera never reaches full speed | Set `debug = true` and push the stick to its edge. Set `full_speed_at` a little below the highest value you see |
 | Full speed comes too early in the push | Raise `full_speed_at` (max `1.0`) |
 | Up/down is backwards | Toggle `invert_tilt` or `invert_zoom` |
 | `Camera at ... did not accept a stop command` | Startup check failed. The line above it gives the reason |
 | `camera rejected the login (401)` | Wrong `user` or `PTZ_PASSWORD` |
 | `camera unreachable` | Check `host`, the network, and that the camera's web page opens in a browser |
-| `config.py: ...` | A setting has an invalid value. The message names it and the allowed range |
+| `...ptz_joystick.toml: ...` | A setting is misspelled or has an invalid value. The message names it and the allowed range |
+| Changed a setting, nothing happened | Check the `Settings:` line at startup: it shows which file was read. Restart after saving |
 | `Can't write log file` | Another program has the log open, or the folder is read-only. The tool keeps running and logs to the terminal only |
 
 ## Tests
@@ -113,8 +118,8 @@ ruff check ptz_joystick
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml)) runs on every push and PR:
 
 1. `lint`: `ruff check`
-2. `test`: the unit tests on Python 3.10 and 3.14, on Windows
-3. `build`: PyInstaller → `ptz_joystick.exe`, signed, smoke-tested (it must reach the password check). Download it from the run's **Artifacts**.
+2. `test`: the unit tests on Python 3.11 and 3.14, on Windows
+3. `build`: PyInstaller → `ptz_joystick.exe`, signed, smoke-tested (it must write `ptz_joystick.toml` next to itself and reach the password check). Download it from the run's **Artifacts**.
 
 To publish a release:
 
@@ -155,7 +160,7 @@ Ports and adapters. The logic never touches hardware, so you can change it and t
 ```
 __main__.py        python -m ptz_joystick → app.main()
 app.py             composition root: builds the real adapters, runs the loop, logging setup
-config.py          Settings (every knob above)
+config.py          Settings (defaults + validation), ptz_joystick.toml loading and template
 commands.py        PanTilt, Zoom, Preset: camera-agnostic, signed speeds, 0 = stop
 mapping.py         pure logic: stick → commands (deadzone, scaling, ignores small stick jitter, button presses)
 sender.py          background thread: latest command per type wins, retries until the camera accepts
@@ -176,7 +181,7 @@ The two ports are `typing.Protocol` classes, so an adapter only needs the right 
 |---|---|
 | New camera brand (e.g. VISCA over IP) | Add `cameras/<name>.py` with a `send(cmd) -> bool`, then change the one `PtzOpticsCamera(...)` line in `app.py` |
 | New controller type (XInput, pygame) | Add `controllers/<name>.py` with a `read()`, then change the `discover()` line in `app.py` |
-| New button action (home, focus, …) | 1. Add a dataclass in `commands.py` and add it to the `Command` union<br>2. Map a button to it in `config.py`<br>3. Add a `case` for it in `cameras/ptzoptics.py` `to_query()` |
+| New button action (home, focus, …) | 1. Add a dataclass in `commands.py` and add it to the `Command` union<br>2. Register its name in `COMMANDS` in `config.py`, then map a button to it in `ptz_joystick.toml`<br>3. Add a `case` for it in `cameras/ptzoptics.py` `to_query()` |
 | Speed curve / deadzone behaviour | `mapping.py` only, covered by `tests/test_mapping.py` |
 
 If a camera adapter gets a command it can't handle, it raises. The sender logs the error, drops that command and keeps running, so stop commands still reach the camera.

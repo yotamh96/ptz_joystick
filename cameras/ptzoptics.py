@@ -48,7 +48,7 @@ class PtzOpticsCamera:
                 self.failing = None
             return True
         if r.status_code == 401:
-            return self._failed(401, "camera rejected the login (401): check user in config.py and PTZ_PASSWORD")
+            return self._failed(401, "camera rejected the login (401): check user in ptz_joystick.toml and PTZ_PASSWORD")
         return self._failed(r.status_code, f"camera answered {r.status_code} to {cmd}")
 
     def _failed(self, kind, msg):

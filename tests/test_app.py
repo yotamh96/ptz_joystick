@@ -3,6 +3,7 @@ import os
 import runpy
 import tempfile
 import unittest
+from pathlib import Path
 from unittest import mock
 
 from ptz_joystick.app import check_camera, run, setup_logging
@@ -80,11 +81,11 @@ class CheckCameraTest(unittest.TestCase):
 
         cam = Refusing()
         with self.assertRaisesRegex(SystemExit, "Camera"):
-            check_camera(cam, "http://cam")
+            check_camera(cam, "http://cam", Path("ptz_joystick.toml"))
         self.assertEqual(cam.calls, [PanTilt(0, 0)])     # probe is a harmless stop
 
     def test_camera_that_answers_passes(self):
-        check_camera(RecordingCamera(), "http://cam")
+        check_camera(RecordingCamera(), "http://cam", Path("ptz_joystick.toml"))
 
 
 class CrashTest(unittest.TestCase):

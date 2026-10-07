@@ -1,8 +1,13 @@
 import os
+import tempfile
+import tomllib
 import unittest
+from dataclasses import fields
+from pathlib import Path
 from unittest import mock
 
 from ptz_joystick import config
+from ptz_joystick.commands import Preset
 from ptz_joystick.config import Settings
 
 
@@ -25,11 +30,76 @@ class ValidationTest(unittest.TestCase):
             with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, word):
                 Settings(**bad)
 
-    def test_load_turns_bad_config_into_clean_exit(self):
-        with mock.patch.dict(os.environ, {"PTZ_PASSWORD": "x"}), \
-                mock.patch.object(config, "Settings", side_effect=ValueError("deadzone must be ...")), \
-                self.assertRaisesRegex(SystemExit, "config.py: deadzone must be"):
-            config.load()
+
+class TemplateTest(unittest.TestCase):
+    def test_template_matches_defaults(self):
+        self.assertEqual(config.from_dict(tomllib.loads(config.TEMPLATE), "x"), Settings(password="x"))
+
+    def test_template_lists_every_setting(self):
+        self.assertEqual(set(tomllib.loads(config.TEMPLATE)), {f.name for f in fields(Settings)} - {"password"})
+
+    def test_written_once_never_overwritten(self):
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / config.FILE_NAME
+            self.assertTrue(config.write_template_if_missing(path))
+            path.write_text('host = "http://10.0.0.1"', encoding="utf-8")
+            self.assertFalse(config.write_template_if_missing(path))
+            self.assertEqual(path.read_text(encoding="utf-8"), 'host = "http://10.0.0.1"')
+
+
+class LoadTest(unittest.TestCase):
+    def load(self, text):
+        with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ, {"PTZ_PASSWORD": "pw"}):
+            path = Path(d) / config.FILE_NAME
+            path.write_text(text, encoding="utf-8")
+            return config.load(path)
+
+    def test_file_overrides_defaults_password_from_env(self):
+        s = self.load('host = "http://10.0.0.1"\ntimeout = 2\n[buttons]\n5 = "Preset 9"\n')
+        self.assertEqual((s.host, s.timeout, s.password, s.buttons), ("http://10.0.0.1", 2, "pw", {5: Preset(9)}))
+        self.assertEqual(s.pan_max, Settings().pan_max)
+
+    def test_relative_log_file_sits_next_to_settings_file(self):
+        with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ, {"PTZ_PASSWORD": "pw"}):
+            path = Path(d) / config.FILE_NAME
+            for text, want in [
+                ("", str(Path(d) / "ptz_joystick.log")),                 # default
+                ("log_file = 'logs\\ptz.log'", str(Path(d) / "logs" / "ptz.log")),
+                ("log_file = 'C:\\elsewhere\\ptz.log'", "C:\\elsewhere\\ptz.log"),   # full path kept
+                ('log_file = ""', ""),                                   # terminal only
+            ]:
+                path.write_text(text, encoding="utf-8")
+                with self.subTest(text=text):
+                    self.assertEqual(config.load(path).log_file, want)
+
+    def test_bad_file_is_clean_exit_naming_file_and_key(self):
+        for text, word in [
+            ('hots = "x"', "unknown setting 'hots'"),
+            ('password = "x"', "PTZ_PASSWORD"),
+            ('pan_max = "24"', "pan_max must be a whole number"),
+            ("buttons = 3", r"buttons must be a \[table\]"),
+            ("pan_max = true", "pan_max"),
+            ('debug = "yes"', "debug must be true or false"),
+            ("deadzone = 0.9", "deadzone"),                  # Settings validation still runs
+            ('[buttons]\n0 = "home"', "bad command 'home'"),
+            ('[buttons]\n0 = "preset"', "bad command"),
+            ('[buttons]\n0 = 3', "bad command"),
+            ('[buttons]\nx = "preset 1"', "index must be a number"),
+            ("[buttons]\n40 = \"preset 1\"", "buttons"),
+            ("host = ", "Invalid value"),                    # TOML syntax error
+        ]:
+            with self.subTest(text=text), self.assertRaisesRegex(SystemExit, f"{config.FILE_NAME}: .*{word}"):
+                self.load(text)
+
+    def test_password_checked_before_file(self):
+        with mock.patch.dict(os.environ, {"PTZ_PASSWORD": ""}), \
+                self.assertRaisesRegex(SystemExit, "Set the camera password first"):
+            config.load(Path("does-not-exist.toml"))
+
+    def test_unreadable_file_is_clean_exit(self):
+        with mock.patch.dict(os.environ, {"PTZ_PASSWORD": "pw"}), \
+                self.assertRaisesRegex(SystemExit, "Can't read settings file"):
+            config.load(Path("does-not-exist.toml"))
 
 
 if __name__ == "__main__":
