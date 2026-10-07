@@ -25,7 +25,12 @@ class ValidationTest(unittest.TestCase):
             ({"pan_axis": "x"}, "pan_axis"),
             ({"zoom_axis": "W"}, "zoom_axis"),
             ({"tilt_max": 0}, "tilt_max"),
+            ({"pan_max": 25}, "pan_max"),                    # camera tops out at 24
+            ({"tilt_max": 21}, "tilt_max"),
+            ({"zoom_max": 8}, "zoom_max"),
             ({"timeout": 0}, "timeout"),
+            ({"timeout": 2.5}, "timeout"),                   # would eat the 3 s shutdown window
+            ({"timeout": float("inf")}, "timeout"),
             ({"host": "192.168.77.3"}, "host"),              # missing http://
             ({"buttons": {0: 1}}, "buttons"),                # not a command
             ({"buttons": {0: PanTilt(1, 0)}}, "buttons"),    # a button-started move would never stop
@@ -99,6 +104,8 @@ class LoadTest(unittest.TestCase):
             ("deadzone = 0.9", "deadzone"),                  # Settings validation still runs
             ('[buttons]\n0 = "home"', "bad command 'home'"),
             ('[buttons]\n0 = "preset"', "bad command"),
+            ('[buttons]\n0 = "preset -1"', "bad command 'preset -1'"),
+            ("timeout = inf", "timeout"),                    # TOML allows inf
             ('[buttons]\n0 = 3', "bad command"),
             ('[buttons]\nx = "preset 1"', "index must be a number"),
             ("[buttons]\n40 = \"preset 1\"", "buttons"),
@@ -116,6 +123,27 @@ class LoadTest(unittest.TestCase):
         with mock.patch.dict(os.environ, {"PTZ_PASSWORD": "pw"}), \
                 self.assertRaisesRegex(SystemExit, "Can't read settings file"):
             config.load(Path("does-not-exist.toml"))
+
+
+class EncodingTest(unittest.TestCase):
+    """Notepad can save the settings file in several encodings: each loads, or the error says what to do."""
+
+    def load_bytes(self, raw):
+        with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ, {"PTZ_PASSWORD": "pw"}):
+            path = Path(d) / config.FILE_NAME
+            path.write_bytes(raw)
+            return config.load(path)
+
+    def test_utf8_with_bom_and_utf16_load(self):
+        for name, raw in [("UTF-8 with BOM", b"\xef\xbb\xbf" + config.TEMPLATE.encode()),
+                          ('"Unicode" (UTF-16)', config.TEMPLATE.encode("utf-16"))]:
+            with self.subTest(name):
+                self.assertEqual(self.load_bytes(raw).host, Settings().host)
+
+    def test_other_encoding_says_save_as_utf8(self):
+        raw = '# הגדרות\nhost = "http://10.0.0.1"\n'.encode("cp1255")      # Hebrew comment saved as ANSI
+        with self.assertRaisesRegex(SystemExit, f"{config.FILE_NAME}: can't read it as text. Save it as UTF-8"):
+            self.load_bytes(raw)
 
 
 if __name__ == "__main__":

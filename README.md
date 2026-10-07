@@ -62,12 +62,12 @@ A misspelled setting, a wrong type (`"24"` instead of `24`) or a `password` line
 |---|---|---|
 | `host` | `"http://192.168.77.3"` | Camera address |
 | `user` | `"admin"` | Camera user. The password always comes from `PTZ_PASSWORD` |
-| `timeout` | `1.0` | Seconds to wait for each camera request |
+| `timeout` | `1.0` | Seconds to wait for each camera request. Max `2`, so the final stop always fits the 3 s shutdown window |
 | `pan_axis` / `tilt_axis` / `zoom_axis` | `X` / `Y` / `R` | Which controller axis does what (`X Y Z R U V`) |
 | `invert_tilt` / `invert_zoom` | `true` | Flip direction if up/down feels backwards |
 | `deadzone` | `0.15` | Stick readings at or below this are ignored |
 | `full_speed_at` | `0.7` | Stick reading that gives top speed. The current pad tops out at about 0.75, not 1.0 |
-| `pan_max` / `tilt_max` / `zoom_max` | `24` / `20` / `7` | Camera's top speeds |
+| `pan_max` / `tilt_max` / `zoom_max` | `24` / `20` / `7` | Camera's top speeds. These defaults are also the most the camera accepts; lower them for slower moves |
 | `[buttons]` | `0 = "preset 1"` … `3 = "preset 4"` | Button index → command. Index 0 is "button 1" in `joy.cpl` |
 | `debug` | `false` | `true` logs every stick reading and every command sent |
 | `log_file` | `"ptz_joystick.log"` | Log file, appended next to `ptz_joystick.toml` (so next to the exe). A full path goes there instead: `log_file = 'D:\logs\ptz.log'` (single quotes, so the backslashes stay as typed). `""` = terminal only |
@@ -109,6 +109,7 @@ To see what happened during a session, check the file afterwards. Set `debug = t
 | `...ptz_joystick.toml: ...` | A setting is misspelled or has an invalid value. The message names it and the allowed range |
 | Changed a setting, nothing happened | Check the `Settings:` line at startup: it shows which file was read. Restart after saving |
 | `Can't write log file` | Another program has the log open, or the folder is read-only. The tool keeps running and logs to the terminal only |
+| `...ptz_joystick.toml: can't read it as text` | The file was saved in an old encoding (for example ANSI with Hebrew text). In Notepad: File → Save as → Encoding: UTF-8 |
 
 ## Tests
 

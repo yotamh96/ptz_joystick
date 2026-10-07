@@ -10,6 +10,8 @@ from .core.commands import MOVES, Command, Preset
 
 AXES = "XYZRUV"
 FILE_NAME = "ptz_joystick.toml"
+TOP_SPEEDS = {"pan_max": 24, "tilt_max": 20, "zoom_max": 7}     # PTZOptics speed ranges
+MAX_TIMEOUT = 2.0       # seconds: a stuck request plus the final stops must fit the 3 s shutdown window
 # Settings-file name -> command a button may fire. Actions only: a stick move started by a button would never
 # be stopped, because the sticks only stop moves they started.
 BUTTON_COMMANDS = {"preset": Preset}
@@ -51,10 +53,11 @@ class Settings:
         for name in ("pan_axis", "tilt_axis", "zoom_axis"):
             v = getattr(self, name)
             check(isinstance(v, str) and len(v) == 1 and v in AXES, f"{name} must be one of {' '.join(AXES)}, got {v!r}")
-        for name in ("pan_max", "tilt_max", "zoom_max"):
+        for name, top in TOP_SPEEDS.items():
             v = getattr(self, name)
-            check(isinstance(v, int) and v >= 1, f"{name} must be a whole number >= 1, got {v!r}")
-        check(self.timeout > 0, f"timeout must be > 0 seconds, got {self.timeout!r}")
+            check(isinstance(v, int) and 1 <= v <= top, f"{name} must be a whole number 1-{top}, got {v!r}")
+        check(0 < self.timeout <= MAX_TIMEOUT,
+              f"timeout must be more than 0 and at most {MAX_TIMEOUT:g} seconds, got {self.timeout!r}")
         check(self.host.startswith(("http://", "https://")), f"host must start with http://, got {self.host!r}")
         bad = {b: c for b, c in self.buttons.items()
                if not (isinstance(b, int) and 0 <= b < 32 and isinstance(c, Command) and not isinstance(c, MOVES))}
@@ -67,7 +70,7 @@ TEMPLATE = """\
 
 host = "http://192.168.77.3"    # camera address
 user = "admin"                  # camera user
-timeout = 1.0                   # seconds to wait for each camera request
+timeout = 1.0                   # seconds to wait for each camera request (max 2)
 
 pan_axis = "X"                  # which controller axis does what: X Y Z R U V
 tilt_axis = "Y"                 #   (debug = true shows which letter moves)
@@ -77,7 +80,7 @@ invert_zoom = true
 deadzone = 0.15                 # stick readings at or below this are ignored
 full_speed_at = 0.7             # stick reading that gives top speed (max 1.0)
 
-pan_max = 24                    # camera's top speeds
+pan_max = 24                    # camera's top speeds (max 24 / 20 / 7)
 tilt_max = 20
 zoom_max = 7
 
@@ -113,16 +116,17 @@ def parse_command(text) -> Command:
     """'preset 1' -> Preset(1)."""
     words = text.split() if isinstance(text, str) else []
     cls = BUTTON_COMMANDS.get(words[0].lower()) if words else None
-    if cls is not None:
+    if cls is not None and all(w.isdecimal() for w in words[1:]):     # whole numbers, 0 or more ("-1" fails)
         try:
             return cls(*map(int, words[1:]))
-        except (TypeError, ValueError):         # wrong number of values, or not whole numbers
+        except TypeError:                       # wrong number of values
             pass
-    raise ValueError(f"bad command {text!r}, use one of: {', '.join(f'{n} N' for n in BUTTON_COMMANDS)}")
+    names = ", ".join(f"{n} N" for n in BUTTON_COMMANDS)
+    raise ValueError(f"bad command {text!r}, use one of: {names} (N = a whole number, 0 or more)")
 
 
 def parse_buttons(table: dict) -> dict:
-    if bad := [b for b in table if not b.isdigit()]:
+    if bad := [b for b in table if not b.isdecimal()]:
         raise ValueError(f"buttons: index must be a number 0-31, got {bad}")
     try:
         return {int(b): parse_command(c) for b, c in table.items()}
@@ -152,13 +156,22 @@ def from_dict(d: dict, password: str) -> Settings:
     return Settings(**values)
 
 
+def read_text(path: Path) -> str:
+    """The settings file as text, in any encoding Notepad saves: UTF-8 (with or without BOM) or "Unicode"."""
+    raw = path.read_bytes()
+    encoding = "utf-16" if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else "utf-8-sig"
+    try:
+        return raw.decode(encoding)
+    except UnicodeDecodeError:
+        raise ValueError("can't read it as text. Save it as UTF-8 (Notepad: File > Save as > Encoding)") from None
+
+
 def load(path: Path) -> Settings:
     password = os.environ.get("PTZ_PASSWORD")
     if not password:
         raise SystemExit('Set the camera password first:  setx PTZ_PASSWORD "..."  then open a new terminal.')
     try:
-        with open(path, "rb") as f:
-            s = from_dict(tomllib.load(f), password)
+        s = from_dict(tomllib.loads(read_text(path)), password)
         # A relative log file sits next to the settings file (and so the exe), whatever folder you run from.
         return replace(s, log_file=str(path.parent / s.log_file)) if s.log_file else s
     except (tomllib.TOMLDecodeError, ValueError) as e:
