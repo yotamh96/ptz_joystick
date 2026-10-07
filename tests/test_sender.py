@@ -38,8 +38,8 @@ class RaisingCamera(FakeCamera):
 
 def wait_idle(s, timeout=2):
     """Wait until the camera took everything pending (drain_with would drop it instead)."""
-    with s.cv:
-        return s.cv.wait_for(lambda: not s.pending, timeout)
+    with s._cv:
+        return s._cv.wait_for(lambda: not s._pending, timeout)
 
 
 class SenderTest(unittest.TestCase):
@@ -122,7 +122,7 @@ class SenderTest(unittest.TestCase):
         time.sleep(0.3)
         self.assertGreater(len(cam.calls), 3)          # never gives up on a move (it is current state)
         self.assertLess(len(cam.calls), 12)            # but backs off instead of hammering the camera
-        self.assertEqual(s.pending, {PanTilt: PanTilt(5, 0)})
+        self.assertEqual(s._pending, {PanTilt: PanTilt(5, 0)})
 
     def test_nothing_sent_after_drain(self):
         cam = FakeCamera()
@@ -194,7 +194,7 @@ class SenderTest(unittest.TestCase):
 
         cam = SlowFirst()
         s = CommandSender(cam, backoff=0.01)
-        with s.cv:                                     # both go out in one batch
+        with s._cv:                                     # both go out in one batch
             s.send(PanTilt(5, 0))
             s.send(Zoom(3))
         self.assertTrue(started.wait(1))               # PanTilt(5, 0) is in flight...

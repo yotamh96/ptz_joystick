@@ -29,17 +29,17 @@ class Mapper:
     """Turns each controller reading into the commands that need sending: button presses and changes only."""
 
     def __init__(self, settings: Settings):
-        self.s = settings
-        self.last = {}          # command type -> last command sent
-        self.buttons = 0
+        self._settings = settings
+        self._last = {}          # command type -> last command sent
+        self._buttons = 0
 
     def update(self, state: ControllerState | None):
         """state=None means the controller is gone: stick reads centred, buttons unchanged."""
-        s, cmds = self.s, []
+        s, cmds = self._settings, []
         axes = state.axes if state else {}
         if state:
-            pressed = state.buttons & ~self.buttons
-            self.buttons = state.buttons
+            pressed = state.buttons & ~self._buttons
+            self._buttons = state.buttons
             cmds += [cmd for b, cmd in s.buttons.items() if pressed >> b & 1]
 
         def axis(name, invert=False):
@@ -50,7 +50,7 @@ class Mapper:
 
         for cmd in (PanTilt(speed(s.pan_axis, s.pan_max), speed(s.tilt_axis, s.tilt_max, s.invert_tilt)),
                     Zoom(speed(s.zoom_axis, s.zoom_max, s.invert_zoom))):
-            if changed(self.last.get(type(cmd)), cmd):
-                self.last[type(cmd)] = cmd
+            if changed(self._last.get(type(cmd)), cmd):
+                self._last[type(cmd)] = cmd
                 cmds.append(cmd)
         return cmds

@@ -30,31 +30,31 @@ def to_query(cmd: Command) -> str:
 
 
 class PtzOpticsCamera:
-    def __init__(self, host, user, password, timeout=1.0):
-        self.url = f"{host}/cgi-bin/ptzctrl.cgi?"
-        self.timeout = timeout
-        self.session = requests.Session()
-        self.session.auth = HTTPDigestAuth(user, password)
-        self.failing = None     # kind of the current failure, so an outage logs once, not every retry
+    def __init__(self, host, user, password, timeout=1.0, session=None):
+        self._url = f"{host}/cgi-bin/ptzctrl.cgi?"
+        self._timeout = timeout
+        self._session = session or requests.Session()     # tests pass a fake
+        self._session.auth = HTTPDigestAuth(user, password)
+        self._failing = None    # kind of the current failure, so an outage logs once, not every retry
 
     def send(self, cmd: Command) -> bool:
         try:
-            r = self.session.get(self.url + to_query(cmd), timeout=self.timeout)
+            r = self._session.get(self._url + to_query(cmd), timeout=self._timeout)
         except requests.RequestException as e:
             return self._failed("unreachable", f"camera unreachable: {e}")
         if r.status_code == 200:
-            if self.failing:
-                log.info("camera back (was: %s)", self.failing)
-                self.failing = None
+            if self._failing:
+                log.info("camera back (was: %s)", self._failing)
+                self._failing = None
             return True
         if r.status_code == 401:
             return self._failed(401, "camera rejected the login (401): check user in ptz_joystick.toml and PTZ_PASSWORD")
         return self._failed(r.status_code, f"camera answered {r.status_code} to {cmd}")
 
     def _failed(self, kind, msg):
-        if kind != self.failing:
+        if kind != self._failing:
             log.warning(msg)
-            self.failing = kind
+            self._failing = kind
         else:
             log.debug(msg)
         return False

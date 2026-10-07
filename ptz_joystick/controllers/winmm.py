@@ -43,17 +43,17 @@ class WinmmController:
         caps = _caps(dev)
         if caps is None:
             raise OSError(f"joystick {dev}: no caps")
-        self.dev = dev
+        self._dev = dev
         # a missing axis would read 0 = -1.0 = full speed forever, so only present axes are reported
-        self.ranges = {a: (getattr(caps, f"w{a}min"), getattr(caps, f"w{a}max"))
-                       for a in "XYZRUV" if a in "XY" or caps.wCaps & HAS_AXIS[a]}
+        self._ranges = {a: (getattr(caps, f"w{a}min"), getattr(caps, f"w{a}max"))
+                        for a in "XYZRUV" if a in "XY" or caps.wCaps & HAS_AXIS[a]}
 
     def read(self):
-        info = _pos(self.dev)
+        info = _pos(self._dev)
         if info is None:
             return None
         axes = {a: max(-1.0, min(1.0, (getattr(info, f"dw{a}pos") - lo) / (hi - lo) * 2 - 1)) if hi > lo else 0.0
-                for a, (lo, hi) in self.ranges.items()}
+                for a, (lo, hi) in self._ranges.items()}
         return ControllerState(axes, info.dwButtons)
 
 

@@ -36,10 +36,9 @@ class ToQueryTest(unittest.TestCase):
 
 def camera_answering(*answers):
     """Camera whose HTTP replies are the given status codes / exceptions, in order."""
-    cam = PtzOpticsCamera("http://cam", "admin", "pw")
-    cam.session.get = mock.Mock(side_effect=[a if isinstance(a, Exception) else SimpleNamespace(status_code=a)
-                                             for a in answers])
-    return cam
+    session = mock.Mock()
+    session.get.side_effect = [a if isinstance(a, Exception) else SimpleNamespace(status_code=a) for a in answers]
+    return PtzOpticsCamera("http://cam", "admin", "pw", session=session)
 
 
 class SendTest(unittest.TestCase):
