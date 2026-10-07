@@ -45,6 +45,10 @@ jobs:
 
       - name: Build exe
         run: |
+          # A release exe carries its tag, so it can tell when a newer release exists. Other builds stay "dev".
+          if ($env:GITHUB_REF_TYPE -eq "tag") {
+            "VERSION = `"$env:GITHUB_REF_NAME`"" | Out-File ptz_joystick\_version.py -Encoding ascii
+          }
           "import ptz_joystick.__main__" | Out-File launch.py -Encoding ascii   # __main__.py uses relative imports
           pyinstaller --onefile --name ptz_joystick launch.py
 
@@ -76,6 +80,9 @@ jobs:
           }
           # The settings template is written before the password check. cwd isn't dist\, so this proves it lands next to the exe.
           if (-not (Test-Path dist\ptz_joystick.toml)) { throw "exe did not create dist\ptz_joystick.toml" }
+          $want = if ($env:GITHUB_REF_TYPE -eq "tag") { $env:GITHUB_REF_NAME } else { "dev" }
+          $version = (& dist\ptz_joystick.exe --version | Out-String).Trim()
+          if ($version -ne $want) { throw "exe --version says '$version', expected '$want'" }
           exit 0
 
       - uses: actions/upload-artifact@v7

@@ -17,6 +17,16 @@ setx PTZ_PASSWORD "your-camera-password"
 
 **No Python?** Download `ptz_joystick.exe` from the latest GitHub Release, run the `setx` line, then run the exe from a new terminal. The first run creates `ptz_joystick.toml` next to the exe. Edit it to change settings; no rebuild needed.
 
+### Updating
+
+At startup the exe checks GitHub and logs a line when a newer release exists:
+
+```
+14:02:10 INFO    Update available: v0.4.0 (you have v0.3.0) https://github.com/yotamh96/ptz_joystick/releases/tag/v0.4.0
+```
+
+It never downloads or replaces anything itself. To update, close the tool, download the new `ptz_joystick.exe` from that page, and put it over the old one. `ptz_joystick.toml` sits next to it, so your settings stay. `ptz_joystick.exe --version` shows the version you have. Exes before v0.3.0 don't check.
+
 ## Run
 
 From the folder that **contains** `ptz_joystick\` (for example, `Desktop`):
@@ -61,12 +71,14 @@ A misspelled setting, a wrong type (`"24"` instead of `24`) or a `password` line
 | `[buttons]` | `0 = "preset 1"` … `3 = "preset 4"` | Button index → command. Index 0 is "button 1" in `joy.cpl` |
 | `debug` | `false` | `true` logs every stick reading and every command sent |
 | `log_file` | `"ptz_joystick.log"` | Log file, appended next to `ptz_joystick.toml` (so next to the exe). A full path goes there instead: `log_file = 'D:\logs\ptz.log'` (single quotes, so the backslashes stay as typed). `""` = terminal only |
+| `check_updates` | `true` | At startup, log a line if a newer release is on GitHub. Set `false` on PCs without internet. Running from Python source never checks |
 
 ## Logs
 
 Every line has a timestamp and goes to the terminal and to `ptz_joystick.log` next to the settings file:
 
 ```
+14:02:10 INFO    ptz_joystick v0.3.0
 14:02:11 INFO    Using joystick ID 0
 14:02:11 INFO    Driving camera http://192.168.77.3. Ctrl+C to quit.
 14:05:40 WARNING Controller lost, camera stopped. Waiting for it...
@@ -128,7 +140,7 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-The tag's run attaches the signed `ptz_joystick.exe` to a GitHub Release named after the tag.
+The tag's run attaches the signed `ptz_joystick.exe` to a GitHub Release named after the tag. The tag is baked into the exe as its version (`_version.py`), which is what the update check compares. Tags must look like `v1.2.3`, or the check ignores them.
 
 ### Signing certificate (one-time setup)
 
@@ -165,6 +177,8 @@ commands.py        PanTilt, Zoom, Preset: camera-agnostic, signed speeds, 0 = st
 mapping.py         pure logic: stick → commands (deadzone, scaling, ignores small stick jitter, button presses)
 sender.py          background thread: latest command per type wins, retries until the camera accepts
 winconsole.py      Windows console close / logoff / shutdown → stop the camera
+updates.py         startup notice when a newer GitHub release exists (never downloads)
+_version.py        "dev"; CI writes the tag here for release builds
 controllers/       Controller port (__init__.py) + winmm.py adapter
 cameras/           Camera port (__init__.py) + ptzoptics.py adapter
 tests/             unit tests with fake controller / camera

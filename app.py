@@ -4,7 +4,8 @@ import logging
 import time
 from pathlib import Path
 
-from . import config
+from . import config, updates
+from ._version import VERSION
 from .cameras import Camera
 from .cameras.ptzoptics import PtzOpticsCamera
 from .commands import PanTilt, Zoom
@@ -51,10 +52,14 @@ def main(argv=None):
     parser = argparse.ArgumentParser(prog="ptz_joystick", description="Drive a PTZOptics camera with a game controller.")
     parser.add_argument("--config", type=Path, default=config.default_path(),
                         help=f"settings file (default: {config.default_path()})")
+    parser.add_argument("--version", action="version", version=VERSION)
     path = parser.parse_args(argv).config
     created = config.write_template_if_missing(path)
     s = config.load(path)
     setup_logging(s)
+    log.info("ptz_joystick %s", VERSION)
+    if s.check_updates:
+        updates.check_in_background(VERSION)
     if created:
         log.info("Wrote default settings to %s. Edit it and restart to change them.", path)
     log.info("Settings: %s", path)

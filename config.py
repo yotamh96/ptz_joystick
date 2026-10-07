@@ -35,6 +35,7 @@ class Settings:
         0: Preset(1), 1: Preset(2), 2: Preset(3), 3: Preset(4)})
     debug: bool = False                 # True = log axis values and buttons (DEBUG level)
     log_file: str = "ptz_joystick.log"  # relative = next to the settings file; "" = terminal only
+    check_updates: bool = True          # look for a newer release on GitHub at startup (notice only)
 
     def __post_init__(self):
         """Catch bad values at startup, not on the first stick push."""
@@ -78,6 +79,7 @@ zoom_max = 7
 
 debug = false                   # true logs every stick reading and every command sent
 log_file = "ptz_joystick.log"   # next to this file unless a full path; "" = terminal only
+check_updates = true            # at startup, log a line if a newer release is on GitHub
 
 [buttons]                       # button index (0 = "button 1" in joy.cpl) = command
 0 = "preset 1"
