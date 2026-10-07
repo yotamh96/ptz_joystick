@@ -42,7 +42,7 @@ class Settings:
     zoom_max: int = 7
 
     buttons: dict = field(default_factory=lambda: {   # button index -> command
-        0: Preset(1), 1: Preset(2), 2: Preset(3), 3: Preset(4), 4: Tracking(True)})
+        0: Preset(1), 1: Preset(2), 2: Preset(3), 3: Preset(4)})
     save_hold_seconds: float = 2.0      # hold a preset button this long to save the current position there; 0 = off
     debug: bool = False                # True = log axis values and buttons (DEBUG level)
     log_file: str = "ptz_joystick.log"  # relative = next to the settings file; "" = terminal only
@@ -103,7 +103,6 @@ check_updates = true            # at startup, log a line if a newer release is o
 1 = "preset 2"
 2 = "preset 3"
 3 = "preset 4"
-4 = "tracking"                  # toggle auto-tracking (PTZOptics Move SE / Move 4K)
 """
 
 
