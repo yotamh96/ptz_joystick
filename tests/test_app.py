@@ -9,7 +9,7 @@ from unittest import mock
 from ptz_joystick.app.main import check_camera, run, setup_logging
 from ptz_joystick.config import Settings
 from ptz_joystick.controllers import ControllerState
-from ptz_joystick.core.commands import PanTilt, Zoom
+from ptz_joystick.core.commands import PanTilt, SavePreset, Zoom
 from ptz_joystick.core.sender import CommandSender
 
 
@@ -53,6 +53,15 @@ class RunTest(unittest.TestCase):
             run(Settings(), ScriptedController(moving(x=1), None, moving(x=1)), sender, period=0.01)
         self.assertIn("Controller lost", logs.output[0])
         self.assertIn(PanTilt(0, 0), cam.calls[cam.calls.index(PanTilt(24, 0)) + 1:])
+
+    def test_holding_preset_button_saves_and_says_so(self):
+        cam = RecordingCamera()
+        held = ControllerState({"X": 0.0, "Y": 0.0, "R": 0.0}, 0b1)        # button 1 = preset 1
+        with self.assertLogs("ptz_joystick.app.main", "INFO") as logs, self.assertRaises(KeyboardInterrupt):
+            run(Settings(save_hold_seconds=0.03), ScriptedController(moving(), *[held] * 10), CommandSender(cam),
+                period=0.01)
+        self.assertIn(SavePreset(1), cam.calls)
+        self.assertTrue(any("Saving the current position as preset 1" in line for line in logs.output))
 
     def test_debug_logs_axes(self):
         s = Settings(debug=True)

@@ -4,7 +4,7 @@ import logging
 import requests
 from requests.auth import HTTPDigestAuth
 
-from ..core.commands import Command, PanTilt, Preset, Zoom
+from ..core.commands import Command, PanTilt, Preset, SavePreset, Zoom
 
 log = logging.getLogger(__name__)
 
@@ -25,6 +25,8 @@ def to_query(cmd: Command) -> str:
             parts = ("zoomin" if speed > 0 else "zoomout", abs(speed))
         case Preset(number):
             parts = ("poscall", number)
+        case SavePreset(number):
+            parts = ("posset", number)
         case _:
             raise TypeError(f"PTZOptics can't do {cmd!r}")
     return "&".join(map(str, ("ptzcmd", *parts)))

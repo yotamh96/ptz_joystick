@@ -45,7 +45,8 @@ python -m ptz_joystick
 |---|---|
 | Left stick | Pan / tilt. Speed grows with how far you push |
 | Right stick up / down | Zoom in / out |
-| Buttons 1–4 | Recall presets 1–4 |
+| Tap buttons 1–4 | Go to presets 1–4 (fires when you let go) |
+| Hold button 1–4 for 2 s | Save the current view as that preset. The log says `Saving the current position as preset N.` |
 | Controller unplugged | Camera stops. Plug it back in to carry on |
 | Ctrl+C, closing the window, logoff, shutdown | Camera stops |
 | Crash | Camera stops. The reason and traceback go to the log file |
@@ -69,6 +70,7 @@ A misspelled setting, a wrong type (`"24"` instead of `24`) or a `password` line
 | `full_speed_at` | `0.7` | Stick reading that gives top speed. The current pad tops out at about 0.75, not 1.0 |
 | `pan_max` / `tilt_max` / `zoom_max` | `24` / `20` / `7` | Camera's top speeds. These defaults are also the most the camera accepts; lower them for slower moves |
 | `[buttons]` | `0 = "preset 1"` … `3 = "preset 4"` | Button index → command. Index 0 is "button 1" in `joy.cpl` |
+| `save_hold_seconds` | `2.0` | Hold a preset button this long to save the current view there. `0` turns saving off, and presets then fire on press instead of on release |
 | `debug` | `false` | `true` logs every stick reading and every command sent |
 | `log_file` | `"ptz_joystick.log"` | Log file, appended next to `ptz_joystick.toml` (so next to the exe). A full path goes there instead: `log_file = 'D:\logs\ptz.log'` (single quotes, so the backslashes stay as typed). `""` = terminal only |
 | `check_updates` | `true` | At startup, log a line if a newer release is on GitHub. Set `false` on PCs without internet. Running from Python source never checks |

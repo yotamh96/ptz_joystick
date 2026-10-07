@@ -6,9 +6,9 @@ from unittest import mock
 import requests
 
 from ptz_joystick.cameras.ptzoptics import PtzOpticsCamera, to_query
-from ptz_joystick.core.commands import Command, PanTilt, Preset, Zoom
+from ptz_joystick.core.commands import Command, PanTilt, Preset, SavePreset, Zoom
 
-EXAMPLES: list[Command] = [PanTilt(3, -4), Zoom(-3), Preset(4)]    # one of each command type
+EXAMPLES: list[Command] = [PanTilt(3, -4), Zoom(-3), Preset(4), SavePreset(4)]    # one of each command type
 
 
 class ToQueryTest(unittest.TestCase):
@@ -32,6 +32,7 @@ class ToQueryTest(unittest.TestCase):
 
     def test_preset(self):
         self.assertEqual(to_query(Preset(4)), "ptzcmd&poscall&4")
+        self.assertEqual(to_query(SavePreset(4)), "ptzcmd&posset&4")
 
 
 def camera_answering(*answers):

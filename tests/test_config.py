@@ -31,6 +31,8 @@ class ValidationTest(unittest.TestCase):
             ({"timeout": 0}, "timeout"),
             ({"timeout": 2.5}, "timeout"),                   # would eat the 3 s shutdown window
             ({"timeout": float("inf")}, "timeout"),
+            ({"save_hold_seconds": -1}, "save_hold_seconds"),
+            ({"save_hold_seconds": 11}, "save_hold_seconds"),
             ({"host": "192.168.77.3"}, "host"),              # missing http://
             ({"buttons": {0: 1}}, "buttons"),                # not a command
             ({"buttons": {0: PanTilt(1, 0)}}, "buttons"),    # a button-started move would never stop

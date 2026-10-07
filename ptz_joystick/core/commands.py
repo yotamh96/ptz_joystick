@@ -25,9 +25,14 @@ class Zoom:
 
 @dataclass(frozen=True)
 class Preset:
-    number: int
+    number: int     # go to this stored position
 
 
-Command = PanTilt | Zoom | Preset   # everything a camera adapter may be sent
+@dataclass(frozen=True)
+class SavePreset:
+    number: int     # store the current position under this number
+
+
+Command = PanTilt | Zoom | Preset | SavePreset  # everything a camera adapter may be sent
 MOVES = PanTilt | Zoom              # what the sticks send: current state, retried until the camera takes it.
                                     # Every other command is a one-shot action (a button press).

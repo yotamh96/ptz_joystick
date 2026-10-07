@@ -3,7 +3,7 @@ from dataclasses import replace
 
 from ptz_joystick.config import Settings
 from ptz_joystick.controllers import ControllerState
-from ptz_joystick.core.commands import PanTilt, Preset, Zoom
+from ptz_joystick.core.commands import PanTilt, Preset, SavePreset, Zoom
 from ptz_joystick.core.mapping import Mapper, changed, scale
 
 
@@ -42,9 +42,18 @@ class ChangedTest(unittest.TestCase):
         self.assertTrue(changed(None, Zoom(0)))
 
 
+class FakeClock:
+    def __init__(self):
+        self.now = 0.0
+
+    def __call__(self):
+        return self.now
+
+
 class MapperTest(unittest.TestCase):
     def setUp(self):
-        self.m = Mapper(Settings())
+        self.clock = FakeClock()
+        self.m = Mapper(Settings(), clock=self.clock)
 
     def test_first_reading_sends_stops(self):
         self.assertEqual(self.m.update(state()), [PanTilt(0, 0), Zoom(0)])
@@ -65,17 +74,40 @@ class MapperTest(unittest.TestCase):
         self.m.update(state(x=0.5))
         self.assertEqual(self.m.update(state(x=0.49)), [])
 
-    def test_button_fires_once_on_press(self):
+    def test_tap_goes_to_preset_on_release(self):
         self.m.update(state())
-        self.assertEqual(self.m.update(state(buttons=0b10)), [Preset(2)])
-        self.assertEqual(self.m.update(state(buttons=0b10)), [])
-        self.m.update(state())
-        self.assertEqual(self.m.update(state(buttons=0b10)), [Preset(2)])
+        self.assertEqual(self.m.update(state(buttons=0b10)), [])          # tap or hold? not known yet
+        self.clock.now = 0.3
+        self.assertEqual(self.m.update(state()), [Preset(2)])
+        self.m.update(state(buttons=0b10))
+        self.clock.now = 0.5
+        self.assertEqual(self.m.update(state()), [Preset(2)])             # every tap fires
 
-    def test_lost_controller_stops_and_keeps_buttons(self):
+    def test_hold_saves_once_and_release_does_nothing(self):
+        self.m.update(state())
+        self.m.update(state(buttons=0b10))
+        self.clock.now = 1.9
+        self.assertEqual(self.m.update(state(buttons=0b10)), [])
+        self.clock.now = 2.0
+        self.assertEqual(self.m.update(state(buttons=0b10)), [SavePreset(2)])
+        self.clock.now = 9.0
+        self.assertEqual(self.m.update(state(buttons=0b10)), [])          # still held: no second save
+        self.assertEqual(self.m.update(state()), [])                      # release after a save: no recall
+
+    def test_saving_off_fires_on_press(self):
+        m = Mapper(replace(Settings(), save_hold_seconds=0), clock=self.clock)
+        m.update(state())
+        self.assertEqual(m.update(state(buttons=0b10)), [Preset(2)])
+        self.clock.now = 30.0
+        self.assertEqual(m.update(state(buttons=0b10)), [])
+        self.assertEqual(m.update(state()), [])
+
+    def test_lost_controller_stops_and_cancels_hold(self):
         self.m.update(state(x=1, buttons=0b1))
         self.assertEqual(self.m.update(None), [PanTilt(0, 0)])
-        self.assertEqual(self.m.update(state(buttons=0b1)), [])   # held through unplug: no re-fire
+        self.clock.now = 10.0
+        self.assertEqual(self.m.update(state(buttons=0b1)), [])   # held through unplug: no save
+        self.assertEqual(self.m.update(state()), [])              # and no recall on release
 
     def test_invert_off(self):
         m = Mapper(replace(Settings(), invert_tilt=False))

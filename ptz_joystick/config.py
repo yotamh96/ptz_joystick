@@ -38,7 +38,8 @@ class Settings:
 
     buttons: dict = field(default_factory=lambda: {   # button index -> command
         0: Preset(1), 1: Preset(2), 2: Preset(3), 3: Preset(4)})
-    debug: bool = False                 # True = log axis values and buttons (DEBUG level)
+    save_hold_seconds: float = 2.0      # hold a preset button this long to save the current position there; 0 = off
+    debug: bool = False                # True = log axis values and buttons (DEBUG level)
     log_file: str = "ptz_joystick.log"  # relative = next to the settings file; "" = terminal only
     check_updates: bool = True          # look for a newer release on GitHub at startup (notice only)
 
@@ -58,6 +59,8 @@ class Settings:
             check(isinstance(v, int) and 1 <= v <= top, f"{name} must be a whole number 1-{top}, got {v!r}")
         check(0 < self.timeout <= MAX_TIMEOUT,
               f"timeout must be more than 0 and at most {MAX_TIMEOUT:g} seconds, got {self.timeout!r}")
+        check(0 <= self.save_hold_seconds <= 10,
+              f"save_hold_seconds must be 0 (saving off) to 10 seconds, got {self.save_hold_seconds!r}")
         check(self.host.startswith(("http://", "https://")), f"host must start with http://, got {self.host!r}")
         bad = {b: c for b, c in self.buttons.items()
                if not (isinstance(b, int) and 0 <= b < 32 and isinstance(c, Command) and not isinstance(c, MOVES))}
@@ -84,6 +87,8 @@ pan_max = 24                    # camera's top speeds (max 24 / 20 / 7)
 tilt_max = 20
 zoom_max = 7
 
+save_hold_seconds = 2.0         # tap a preset button = go there; hold it this long = save the current
+                                #   view there; 0 = saving off (and presets fire on press)
 debug = false                   # true logs every stick reading and every command sent
 log_file = "ptz_joystick.log"   # next to this file unless a full path; "" = terminal only
 check_updates = true            # at startup, log a line if a newer release is on GitHub
