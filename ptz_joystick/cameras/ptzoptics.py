@@ -8,6 +8,8 @@ from ..core.commands import Command, PanTilt, Preset, SavePreset, Tracking, Zoom
 
 log = logging.getLogger(__name__)
 
+TOP_SPEEDS = {"pan_max": 24, "tilt_max": 20, "zoom_max": 7}     # the most each speed setting may be
+
 
 def to_query(cmd: Command) -> str:
     """Command -> the part of the URL after /cgi-bin/."""

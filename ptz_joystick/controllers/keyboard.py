@@ -5,11 +5,14 @@ A key reads as the stick pushed fully, so moves run at pan_max / tilt_max / zoom
 Keys count only while this program's window is in front; otherwise it reads as sticks centred, nothing held.
 """
 import ctypes
+import logging
 import os
 from ctypes import wintypes
 
 from ..config import Settings
 from . import ControllerState
+
+log = logging.getLogger(__name__)
 
 VK_LEFT, VK_UP, VK_RIGHT, VK_DOWN = 0x25, 0x26, 0x27, 0x28
 BUTTON_KEYS = "1234"       # a digit's or letter's virtual-key code is its ASCII code
@@ -90,3 +93,8 @@ class KeyboardController:
         axes = {self._pan: axis(VK_LEFT, VK_RIGHT), self._tilt: axis(VK_UP, VK_DOWN), self._zoom: axis(ord("W"), ord("S"))}
         buttons = sum(_held(ord(k)) << i for i, k in enumerate(BUTTON_KEYS))
         return ControllerState(axes, buttons)
+
+
+def start(settings: Settings) -> KeyboardController:
+    log.info(HELP)
+    return KeyboardController(settings)

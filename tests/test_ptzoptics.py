@@ -1,27 +1,18 @@
 import unittest
 from types import SimpleNamespace
-from typing import get_args
 from unittest import mock
 
+import contracts
 import requests
 
+from ptz_joystick.cameras import ptzoptics
 from ptz_joystick.cameras.ptzoptics import PtzOpticsCamera, to_query
-from ptz_joystick.core.commands import (
-    Command,
-    PanTilt,
-    Preset,
-    SavePreset,
-    Tracking,
-    Zoom,
-)
-
-EXAMPLES: list[Command] = [PanTilt(3, -4), Zoom(-3), Preset(4), SavePreset(4), Tracking(True)]    # one of each command type
+from ptz_joystick.core.commands import PanTilt, Preset, SavePreset, Tracking, Zoom
 
 
 class ToQueryTest(unittest.TestCase):
     def test_every_command_type_translates(self):
-        self.assertEqual({type(c) for c in EXAMPLES}, set(get_args(Command)), "new command type? add an example")
-        for cmd in EXAMPLES:
+        for cmd in contracts.EXAMPLES:
             with self.subTest(cmd=cmd):
                 self.assertTrue(to_query(cmd).startswith(("ptzctrl.cgi?ptzcmd&", "param.cgi?")))
 
@@ -61,7 +52,17 @@ def camera_answering(*answers):
     return PtzOpticsCamera("http://cam", "admin", "pw", session=session)
 
 
-class SendTest(unittest.TestCase):
+class SendTest(contracts.CameraContract):
+    top_speeds = ptzoptics.TOP_SPEEDS
+
+    def make(self, up):
+        session = mock.Mock()
+        if up:
+            session.get.return_value = SimpleNamespace(status_code=200)
+        else:
+            session.get.side_effect = requests.ConnectTimeout("timed out")
+        return PtzOpticsCamera("http://cam", "admin", "pw", session=session)
+
     def test_outage_logs_once_then_recovery(self):
         down = requests.ConnectTimeout("timed out")
         cam = camera_answering(down, down, down, 200)

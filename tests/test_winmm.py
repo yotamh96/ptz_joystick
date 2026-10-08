@@ -1,6 +1,8 @@
 import unittest
 from unittest import mock
 
+import contracts
+
 from ptz_joystick.controllers import ControllerState, winmm
 from ptz_joystick.controllers.winmm import JOYCAPSW, JOYINFOEX, WinmmController
 
@@ -19,13 +21,22 @@ def pos(buttons=0, **raw):
     return JOYINFOEX(dwButtons=buttons, **{f"dw{a}pos": v for a, v in raw.items()})
 
 
-class WinmmControllerTest(unittest.TestCase):
+class WinmmControllerTest(contracts.ControllerContract):
     def read(self, device_caps, reading):
         """One read() from a device with these caps returning this reading (None = unplugged)."""
         with mock.patch.object(winmm, "_caps", return_value=device_caps):
             c = WinmmController(0)
         with mock.patch.object(winmm, "_pos", return_value=reading):
             return c.read()
+
+    def at_rest(self):
+        return self.read(caps(R=(0, 100)), pos(X=50, Y=50, R=50))
+
+    def full_push(self):
+        return self.read(caps(R=(0, 100)), pos(buttons=0b1, X=100, Y=0, R=100))
+
+    def unplugged(self):
+        return self.read(caps(), None)
 
     def test_reports_only_axes_the_device_has(self):
         self.assertEqual(set(self.read(caps(), pos(X=50, Y=50)).axes), {"X", "Y"})

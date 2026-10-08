@@ -1,9 +1,11 @@
 import unittest
 from unittest import mock
 
+import contracts
+
 from ptz_joystick.config import Settings
 from ptz_joystick.controllers import keyboard
-from ptz_joystick.controllers.keyboard import VK_LEFT, VK_RIGHT, VK_UP
+from ptz_joystick.controllers.keyboard import VK_DOWN, VK_LEFT, VK_RIGHT, VK_UP
 from ptz_joystick.core.commands import PanTilt, Zoom
 from ptz_joystick.core.mapping import Mapper
 
@@ -12,13 +14,21 @@ CONSOLE, TERMINAL_PID = 100, 5        # our console window, and one of our paren
 
 def read(*keys, settings=None, front=(None, TERMINAL_PID)):
     """One read() with these virtual-key codes held and front = (window, its process) in front."""
-    with mock.patch.object(keyboard, "_console_windows", return_value={CONSOLE}),          mock.patch.object(keyboard, "_ancestor_pids", return_value={TERMINAL_PID}):
+    with mock.patch.object(keyboard, "_console_windows", return_value={CONSOLE}), \
+            mock.patch.object(keyboard, "_ancestor_pids", return_value={TERMINAL_PID}):
         c = keyboard.KeyboardController(settings or Settings())
-    with mock.patch.object(keyboard, "_held", side_effect=lambda vk: vk in keys),          mock.patch.object(keyboard, "_foreground", return_value=front):
+    with mock.patch.object(keyboard, "_held", side_effect=lambda vk: vk in keys), \
+            mock.patch.object(keyboard, "_foreground", return_value=front):
         return c.read()
 
 
-class KeyboardControllerTest(unittest.TestCase):
+class KeyboardControllerTest(contracts.ControllerContract):
+    def at_rest(self):
+        return read()
+
+    def full_push(self):
+        return read(VK_RIGHT, VK_DOWN, ord("S"), ord("1"))
+
     def test_nothing_held_reads_centred(self):
         state = read()
         self.assertEqual(state.axes, {"X": 0.0, "Y": 0.0, "R": 0.0})
@@ -52,7 +62,8 @@ class KeyboardControllerTest(unittest.TestCase):
 
 class AncestorPidsTest(unittest.TestCase):
     def ancestors(self, procs, me):
-        with mock.patch.object(keyboard, "_processes", return_value=procs),              mock.patch.object(keyboard.os, "getpid", return_value=me):
+        with mock.patch.object(keyboard, "_processes", return_value=procs), \
+                mock.patch.object(keyboard.os, "getpid", return_value=me):
             return keyboard._ancestor_pids()
 
     def test_walks_up_to_explorer_and_stops(self):

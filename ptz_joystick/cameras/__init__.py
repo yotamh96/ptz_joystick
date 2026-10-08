@@ -18,5 +18,10 @@ class Camera(Protocol):
         - Return within about a second (use a timeout): at shutdown the stops get 3 s in total.
         - Called from one thread at a time, so no locking needed.
 
-        mypy (in CI) checks that adapters match this signature. The "/" means the parameter's name is free.
+        Each adapter module also has TOP_SPEEDS: the most pan_max / tilt_max / zoom_max may be for this camera,
+        e.g. {"pan_max": 24, "tilt_max": 20, "zoom_max": 7}. Startup refuses settings above them.
+
+        To add a camera: write the adapter, add a line to CAMERAS in app/adapters.py, and subclass
+        tests/contracts.py CameraContract in its tests. mypy (in CI) checks the adapter against this signature
+        where CAMERAS lists it. The "/" means the parameter's name is free.
         """

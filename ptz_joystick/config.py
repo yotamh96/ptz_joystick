@@ -11,7 +11,6 @@ from .core.commands import MOVES, Command, Preset, Tracking
 
 AXES = "XYZRUV"
 FILE_NAME = "ptz_joystick.toml"
-TOP_SPEEDS = {"pan_max": 24, "tilt_max": 20, "zoom_max": 7}     # PTZOptics speed ranges
 MAX_TIMEOUT = 2.0       # seconds: a stuck request plus the final stops must fit the 3 s shutdown window
 # Settings-file name -> (command a button may fire, how to write it). Actions only: a stick move started by a
 # button would never be stopped, because the sticks only stop moves they started. A "tracking" button toggles:
@@ -24,11 +23,13 @@ BUTTON_COMMANDS: dict[str, tuple[Callable[..., Command], str]] = {
 
 @dataclass(frozen=True)
 class Settings:
+    camera: str = "ptzoptics"           # camera type: a name in app/adapters.py CAMERAS
     host: str = "http://192.168.77.3"
     user: str = "admin"
     password: str = ""                  # filled from PTZ_PASSWORD by load(), never from the file
     timeout: float = 1.0                # seconds per camera request
 
+    controller: str = "winmm"           # controller type: a name in app/adapters.py CONTROLLERS
     pan_axis: str = "X"                 # X Y Z R U V  (debug=True shows which one moves)
     tilt_axis: str = "Y"
     zoom_axis: str = "R"
@@ -37,7 +38,7 @@ class Settings:
     deadzone: float = 0.15
     full_speed_at: float = 0.7          # stick reading that means top speed (this pad tops out ~0.75, not 1.0)
 
-    pan_max: int = 24                   # camera speed ranges
+    pan_max: int = 24                   # top speeds; each camera type checks its own limits (app/main.py)
     tilt_max: int = 20
     zoom_max: int = 7
 
@@ -59,9 +60,9 @@ class Settings:
         for name in ("pan_axis", "tilt_axis", "zoom_axis"):
             v = getattr(self, name)
             check(isinstance(v, str) and len(v) == 1 and v in AXES, f"{name} must be one of {' '.join(AXES)}, got {v!r}")
-        for name, top in TOP_SPEEDS.items():
+        for name in ("pan_max", "tilt_max", "zoom_max"):
             v = getattr(self, name)
-            check(isinstance(v, int) and 1 <= v <= top, f"{name} must be a whole number 1-{top}, got {v!r}")
+            check(isinstance(v, int) and v >= 1, f"{name} must be a whole number, 1 or more, got {v!r}")
         check(0 < self.timeout <= MAX_TIMEOUT,
               f"timeout must be more than 0 and at most {MAX_TIMEOUT:g} seconds, got {self.timeout!r}")
         check(0 <= self.save_hold_seconds <= 10,
@@ -76,10 +77,12 @@ TEMPLATE = """\
 # ptz_joystick settings. Edit, save, restart ptz_joystick.
 # The camera password is not here: set it with  setx PTZ_PASSWORD "..."
 
+camera = "ptzoptics"            # camera type: ptzoptics
 host = "http://192.168.77.3"    # camera address
 user = "admin"                  # camera user
 timeout = 1.0                   # seconds to wait for each camera request (max 2)
 
+controller = "winmm"            # winmm (any controller joy.cpl shows) or keyboard
 pan_axis = "X"                  # which controller axis does what: X Y Z R U V
 tilt_axis = "Y"                 #   (debug = true shows which letter moves)
 zoom_axis = "R"
@@ -88,7 +91,7 @@ invert_zoom = true
 deadzone = 0.15                 # stick readings at or below this are ignored
 full_speed_at = 0.7             # stick reading that gives top speed (max 1.0)
 
-pan_max = 24                    # camera's top speeds (max 24 / 20 / 7)
+pan_max = 24                    # camera's top speeds (PTZOptics max 24 / 20 / 7)
 tilt_max = 20
 zoom_max = 7
 

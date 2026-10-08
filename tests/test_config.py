@@ -25,9 +25,7 @@ class ValidationTest(unittest.TestCase):
             ({"pan_axis": "x"}, "pan_axis"),
             ({"zoom_axis": "W"}, "zoom_axis"),
             ({"tilt_max": 0}, "tilt_max"),
-            ({"pan_max": 25}, "pan_max"),                    # camera tops out at 24
-            ({"tilt_max": 21}, "tilt_max"),
-            ({"zoom_max": 8}, "zoom_max"),
+            ({"zoom_max": 2.5}, "zoom_max"),                 # each camera's own top: app.main.check_types
             ({"timeout": 0}, "timeout"),
             ({"timeout": 2.5}, "timeout"),                   # would eat the 3 s shutdown window
             ({"timeout": float("inf")}, "timeout"),

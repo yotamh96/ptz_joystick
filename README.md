@@ -39,7 +39,7 @@ python -m ptz_joystick
 2. It lists the joystick IDs it found and asks you to move the left stick. It uses the controller that moves.
 3. It drives the camera until you press **Ctrl+C** or close the window. Both send a stop to the camera before exiting.
 
-**No controller at hand?** `python -m ptz_joystick --keyboard` (same flag for the exe) skips step 2 and drives with the keyboard: arrows = left stick, **W / S** = zoom in / out, keys **1–4** = buttons 1–4 (tap = go to preset, hold 2 s = save it). Each key is a full push, so moves run at top speed; lower `pan_max` / `tilt_max` / `zoom_max` for gentler moves. Keys only count while the tool's window (console, Windows Terminal or VS Code) is in front. Click another window and the camera stops.
+**No controller at hand?** `python -m ptz_joystick --keyboard` (same flag for the exe, or `controller = "keyboard"` in the settings) skips step 2 and drives with the keyboard: arrows = left stick, **W / S** = zoom in / out, keys **1–4** = buttons 1–4 (tap = go to preset, hold 2 s = save it). Each key is a full push, so moves run at top speed; lower `pan_max` / `tilt_max` / `zoom_max` for gentler moves. Keys only count while the tool's window (console, Windows Terminal or VS Code) is in front. Click another window and the camera stops.
 
 ## Controls
 
@@ -63,14 +63,16 @@ A misspelled setting, a wrong type (`"24"` instead of `24`) or a `password` line
 
 | Setting | Default | What it does |
 |---|---|---|
+| `camera` | `"ptzoptics"` | Camera type. Only `ptzoptics` for now (see [Adding a camera](#adding-a-camera-eg-visca-over-ip)) |
 | `host` | `"http://192.168.77.3"` | Camera address |
 | `user` | `"admin"` | Camera user. The password always comes from `PTZ_PASSWORD` |
 | `timeout` | `1.0` | Seconds to wait for each camera request. Max `2`, so the final stop always fits the 3 s shutdown window |
+| `controller` | `"winmm"` | Controller type: `winmm` (any controller `joy.cpl` shows) or `keyboard`. `--keyboard` on the command line does the same as `"keyboard"` here |
 | `pan_axis` / `tilt_axis` / `zoom_axis` | `X` / `Y` / `R` | Which controller axis does what (`X Y Z R U V`) |
 | `invert_tilt` / `invert_zoom` | `true` | Flip direction if up/down feels backwards |
 | `deadzone` | `0.15` | Stick readings at or below this are ignored |
 | `full_speed_at` | `0.7` | Stick reading that gives top speed. The current pad tops out at about 0.75, not 1.0 |
-| `pan_max` / `tilt_max` / `zoom_max` | `24` / `20` / `7` | Camera's top speeds. These defaults are also the most the camera accepts; lower them for slower moves |
+| `pan_max` / `tilt_max` / `zoom_max` | `24` / `20` / `7` | Camera's top speeds. Lower them for slower moves. Each camera type has its own ceiling, and startup names it if you go over. For PTZOptics, the defaults are the ceiling |
 | `[buttons]` | `0 = "preset 1"` … `3 = "preset 4"` | Button index → `preset N` or `tracking` (toggles auto-tracking, PTZOptics Move SE / Move 4K only). Index 0 is "button 1" in `joy.cpl` |
 | `save_hold_seconds` | `2.0` | Hold a preset button this long to save the current view there. `0` turns saving off, and presets then fire on press instead of on release |
 | `debug` | `false` | `true` logs every stick reading and every command sent |
@@ -185,6 +187,7 @@ ptz_joystick/          the package
   config.py            Settings (defaults + validation), ptz_joystick.toml loading and template
   app/                 runs the program
     main.py            composition root: builds the real adapters, runs the loop, logging setup
+    adapters.py        CAMERAS / CONTROLLERS: every type camera = / controller = can name
     updates.py         startup notice when a newer GitHub release exists (never downloads)
     winconsole.py      Windows console close / logoff / shutdown → stop the camera
     version.py         "dev"; CI writes the tag here for release builds
@@ -193,8 +196,9 @@ ptz_joystick/          the package
     mapping.py         stick → commands (deadzone, scaling, ignores small stick jitter, button presses)
     sender.py          background thread: latest command per type wins, retries until the camera accepts
   cameras/             Camera port (__init__.py) + ptzoptics.py adapter
-  controllers/         Controller port (__init__.py) + winmm.py adapter
+  controllers/         Controller port (__init__.py) + winmm.py and keyboard.py adapters
 tests/                 unit tests with fake controller / camera
+  contracts.py         the port rules as tests; every adapter's tests subclass one
 ```
 
 Paths below are inside `ptz_joystick/` unless they start with `tests/`.
@@ -208,28 +212,43 @@ The rules for commands are at the top of `core/commands.py`.
 
 ## Extending
 
-### New camera brand (e.g. VISCA over IP)
+Users pick the camera and controller with `camera =` and `controller =` in `ptz_joystick.toml`. Each name comes from the `CAMERAS` / `CONTROLLERS` tables in `app/adapters.py`. Adding a type is one adapter file, one line in that table and one test class. Nothing else changes.
+
+### Adding a camera (e.g. VISCA over IP)
 
 1. Read the rules on `Camera.send` in `cameras/__init__.py`.
-2. Add `cameras/<name>.py` with a class that has `send(cmd) -> bool`.
-3. Add `tests/test_<name>.py`. Copy the checks in `tests/test_ptzoptics.py`: every command type translates, an outage logs once, a wrong login says so.
-4. In `app/main.py`, build it instead of `PtzOpticsCamera(...)`; `mypy` then checks it against `Camera`. New settings go in `Settings` and `TEMPLATE` in `config.py`.
+2. Add `cameras/<name>.py` with:
+   - a class that has `send(cmd) -> bool`
+   - `TOP_SPEEDS = {"pan_max": …, "tilt_max": …, "zoom_max": …}`: the highest speed the camera accepts for each. Startup refuses settings above them.
+3. Add a line to `CAMERAS` in `app/adapters.py`: `"<name>": CameraType(lambda s: YourCamera(s.host, …), <name>.TOP_SPEEDS)`. `mypy` checks the class against `Camera` there.
+4. Add `tests/test_<name>.py` with a class that subclasses `contracts.CameraContract` (`import contracts`). Fill in two hooks:
+   - `make(up)`: your camera with a fake connection that always works (`up=True`) or always fails
+   - `top_speeds`
+
+   The contract checks that stops always work, every command is sent or refused with `TypeError`, a camera that's down returns `False` and logs once, and `TOP_SPEEDS` is complete. `tests/test_ptzoptics.py` is the example.
+5. Add `<name>` to the `camera` comment in `TEMPLATE` (`config.py`) and to the `camera` row in the Settings table above. A camera that needs new settings (a COM port, say) adds them to `Settings` and `TEMPLATE` too.
 
 If a camera adapter raises `TypeError` (a command it can't do at all), the sender logs it and drops that command. Any other error from an adapter counts as a refusal and is retried, so a network error can never lose a stop.
 
-### New controller type (XInput, pygame)
+### Adding a controller (XInput, pygame, MIDI)
 
 1. Read the rules on `Controller.read` in `controllers/__init__.py`.
-2. Add `controllers/<name>.py` with a class that has `read()`, and a function that returns a ready controller (like `winmm.discover()`). Annotate that function's return type, or `mypy` can't check it.
-3. Add `tests/test_<name>.py`. Copy the checks in `tests/test_winmm.py`: only real axes, scaled to -1..1, `None` when unplugged.
-4. In `app/main.py`, call your function instead of `discover()`; `mypy` then checks the controller against `Controller`.
+2. Add `controllers/<name>.py` with a class that has `read()`, and a function that takes `Settings` and returns a ready controller (like `keyboard.start`).
+3. Add a line to `CONTROLLERS` in `app/adapters.py`: `"<name>": <name>.start`. `mypy` checks it against `Controller` there.
+4. Add `tests/test_<name>.py` with a class that subclasses `contracts.ControllerContract`. Fill in three hooks:
+   - `at_rest()`: a reading with sticks centred and nothing held
+   - `full_push()`: a reading with every axis pushed to one end and only button 1 held
+   - `unplugged()`: a reading with the device gone. Leave it out if the device can't be unplugged
+
+   The contract checks the axis letters, the -1..1 range, that button 1 is bit 0, and that unplugged reads `None`. `tests/test_winmm.py` and `tests/test_keyboard.py` are the examples.
+5. Add `<name>` to the `controller` comment in `TEMPLATE` (`config.py`) and to the `controller` row in the Settings table above.
 
 ### New button action (home, focus, …)
 
 1. Read the rules at the top of `core/commands.py`: a complete instruction that is safe to send twice.
 2. Add a frozen dataclass there and add it to `Command`.
 3. Give it a name in `BUTTON_COMMANDS` in `config.py`, then map a button to it in `ptz_joystick.toml`.
-4. Add a `case` for it in `to_query()` in `cameras/ptzoptics.py`, and an example in `tests/test_ptzoptics.py`. That test fails until you do both.
+4. Add an example to `EXAMPLES` in `tests/contracts.py`, and a `case` for it in every camera's adapter (`to_query()` in `cameras/ptzoptics.py`). The contract tests fail until you do both.
 
 The sender needs no change: anything that isn't a stick move gets 3 tries, then is dropped.
 

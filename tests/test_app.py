@@ -4,9 +4,11 @@ import runpy
 import tempfile
 import unittest
 from pathlib import Path
+from typing import Any
 from unittest import mock
 
-from ptz_joystick.app.main import check_camera, run, setup_logging
+from ptz_joystick.app.adapters import CAMERAS
+from ptz_joystick.app.main import check_camera, check_types, run, setup_logging
 from ptz_joystick.config import Settings
 from ptz_joystick.controllers import ControllerState
 from ptz_joystick.core.commands import PanTilt, SavePreset, Zoom
@@ -84,6 +86,29 @@ class CheckCameraTest(unittest.TestCase):
 
     def test_camera_that_answers_passes(self):
         check_camera(RecordingCamera(), "http://cam", Path("ptz_joystick.toml"))
+
+
+class CheckTypesTest(unittest.TestCase):
+    PATH = Path("ptz_joystick.toml")
+
+    def test_defaults_pass(self):
+        check_types(Settings(), self.PATH)
+        check_types(Settings(controller="keyboard"), self.PATH)
+
+    def test_unknown_type_names_the_setting_and_the_choices(self):
+        cases: list[tuple[dict[str, Any], str]] = [
+            ({"camera": "sony"}, "camera must be one of ptzoptics, got 'sony'"),
+            ({"controller": "xbox"}, "controller must be one of winmm, keyboard, got 'xbox'")]
+        for bad, words in cases:
+            with self.subTest(bad=bad), self.assertRaisesRegex(SystemExit, words):
+                check_types(Settings(**bad), self.PATH)
+
+    def test_speed_above_the_camera_top_is_refused(self):
+        tops: dict[str, Any] = CAMERAS["ptzoptics"].top_speeds
+        check_types(Settings(**tops), self.PATH)                # the top itself is fine
+        for name, top in tops.items():
+            with self.subTest(name=name), self.assertRaisesRegex(SystemExit, f"{name} can be at most {top}"):
+                check_types(Settings(**{**tops, name: top + 1}), self.PATH)
 
 
 class CrashTest(unittest.TestCase):

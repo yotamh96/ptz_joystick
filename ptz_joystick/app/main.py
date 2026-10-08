@@ -1,19 +1,19 @@
-"""Composition root: the only place that builds hardware objects. Swap an adapter here."""
+"""Composition root: the only place that builds hardware objects, picked from the tables in adapters.py."""
 import argparse
 import logging
 import time
+from dataclasses import replace
 from pathlib import Path
 
 from .. import config
 from ..cameras import Camera
-from ..cameras.ptzoptics import PtzOpticsCamera
 from ..config import Settings
-from ..controllers import Controller, keyboard
-from ..controllers.winmm import discover
+from ..controllers import Controller
 from ..core.commands import PanTilt, SavePreset, Tracking, Zoom
 from ..core.mapping import Mapper
 from ..core.sender import CommandSender
 from . import updates
+from .adapters import CAMERAS, CONTROLLERS
 from .version import VERSION
 from .winconsole import on_console_close
 
@@ -43,6 +43,17 @@ def check_camera(camera: Camera, host: str, settings_path: Path):
                          f"Check host in {settings_path}, the network, and PTZ_PASSWORD.")
 
 
+def check_types(s: Settings, settings_path: Path):
+    """camera and controller name known types, and the speeds fit that camera. Before anything connects."""
+    for name, table in (("camera", CAMERAS), ("controller", CONTROLLERS)):
+        if getattr(s, name) not in table:
+            raise SystemExit(f"{settings_path}: {name} must be one of {', '.join(table)}, got {getattr(s, name)!r}")
+    for name, top in CAMERAS[s.camera].top_speeds.items():
+        if getattr(s, name) > top:
+            raise SystemExit(f"{settings_path}: {name} can be at most {top} for camera {s.camera!r}, "
+                             f"got {getattr(s, name)}")
+
+
 def stop_camera(sender: CommandSender):
     if sender.drain_with([PanTilt(0, 0), Zoom(0)]):
         log.info("Camera stopped.")
@@ -55,26 +66,24 @@ def main(argv=None):
     parser.add_argument("--config", type=Path, default=config.default_path(),
                         help=f"settings file (default: {config.default_path()})")
     parser.add_argument("--version", action="version", version=VERSION)
-    parser.add_argument("--keyboard", action="store_true", help="drive with the keyboard instead of a controller")
+    parser.add_argument("--keyboard", action="store_true", help="same as controller = \"keyboard\" in the settings file")
     args = parser.parse_args(argv)
     path = args.config
     created = config.write_template_if_missing(path)
     s = config.load(path)
+    if args.keyboard:
+        s = replace(s, controller="keyboard")
+    check_types(s, path)
     setup_logging(s)
     log.info("ptz_joystick %s", VERSION)
     if s.check_updates:
         updates.check_in_background(VERSION)
     if created:
         log.info("Wrote default settings to %s. Edit it and restart to change them.", path)
-    log.info("Settings: %s", path)
-    camera = PtzOpticsCamera(s.host, s.user, s.password, s.timeout)
+    log.info("Settings: %s (camera %s, controller %s)", path, s.camera, s.controller)
+    camera = CAMERAS[s.camera].connect(s)
     check_camera(camera, s.host, path)
-    controller: Controller
-    if args.keyboard:
-        log.info(keyboard.HELP)
-        controller = keyboard.KeyboardController(s)
-    else:
-        controller = discover()
+    controller = CONTROLLERS[s.controller](s)
     if state := controller.read():
         missing = [a for a in (s.pan_axis, s.tilt_axis, s.zoom_axis) if a not in state.axes]
         if missing:
