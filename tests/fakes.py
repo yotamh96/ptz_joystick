@@ -14,6 +14,20 @@ class ScriptedController:
         return self.readings.pop(0)
 
 
+class SetsStop(ScriptedController):
+    """Plays back readings and sets stop with the last one, so run() ends by itself instead of reading again."""
+
+    def __init__(self, stop, *readings):
+        super().__init__(*readings)
+        self.stop = stop
+
+    def read(self):
+        state = super().read()
+        if not self.readings:
+            self.stop.set()
+        return state
+
+
 class RecordingCamera:
     def __init__(self):
         self.calls = []
