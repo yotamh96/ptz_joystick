@@ -1,6 +1,6 @@
 """Every camera and controller type the settings can name in camera = / controller =.
 
-A new adapter is one line here; see "Adding a camera or controller" in README.md. Each entry also says, for mypy,
+A new adapter is one line here; see docs/extending.md for the steps. Each entry also says, for mypy,
 that the adapter fits its Protocol. Only app/ imports this, so the core and the ports never see an adapter.
 """
 from collections.abc import Callable
