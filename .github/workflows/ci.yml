@@ -40,7 +40,7 @@ jobs:
         with: { python-version: "3.14" }
       - run: pip install -r requirements.txt pyinstaller
 
-      - name: Build exe
+      - name: Build exes
         run: |
           # A release exe carries its tag, so it can tell when a newer release exists. Other builds stay "dev".
           if ($env:GITHUB_REF_TYPE -eq "tag") {
@@ -48,8 +48,11 @@ jobs:
           }
           "import ptz_joystick.__main__" | Out-File launch.py -Encoding ascii   # __main__.py uses relative imports
           pyinstaller --onefile --name ptz_joystick launch.py
+          # The same program started as --tray, built with no console window.
+          "import sys; sys.argv.insert(1, '--tray'); import ptz_joystick.__main__" | Out-File launch_tray.py -Encoding ascii
+          pyinstaller --onefile --windowed --name ptz_joystick_tray launch_tray.py
 
-      - name: Sign exe
+      - name: Sign exes
         env:
           SIGNING_PFX: ${{ secrets.SIGNING_PFX }}
           SIGNING_PFX_PASSWORD: ${{ secrets.SIGNING_PFX_PASSWORD }}
@@ -61,11 +64,13 @@ jobs:
           }
           $cert = [Security.Cryptography.X509Certificates.X509Certificate2]::new(
             [Convert]::FromBase64String($env:SIGNING_PFX), $env:SIGNING_PFX_PASSWORD)
-          Set-AuthenticodeSignature dist\ptz_joystick.exe -Certificate $cert -HashAlgorithm SHA256 `
-            -TimestampServer http://timestamp.digicert.com | Out-Null
-          # Status is UnknownError here (runner doesn't trust our self-signed root), so check the signer instead.
-          if ((Get-AuthenticodeSignature dist\ptz_joystick.exe).SignerCertificate.Thumbprint -ne $cert.Thumbprint) {
-            throw "exe not signed"
+          foreach ($exe in "dist\ptz_joystick.exe", "dist\ptz_joystick_tray.exe") {
+            Set-AuthenticodeSignature $exe -Certificate $cert -HashAlgorithm SHA256 `
+              -TimestampServer http://timestamp.digicert.com | Out-Null
+            # Status is UnknownError here (runner doesn't trust our self-signed root), so check the signer instead.
+            if ((Get-AuthenticodeSignature $exe).SignerCertificate.Thumbprint -ne $cert.Thumbprint) {
+              throw "$exe not signed"
+            }
           }
 
       - name: Smoke test
@@ -82,13 +87,32 @@ jobs:
           if ($version -ne $want) { throw "exe --version says '$version', expected '$want'" }
           exit 0
 
+      - name: Smoke test (tray)
+        run: |
+          # No PTZ_PASSWORD: the tray exe must start, write the password check to the log next to it, and keep
+          # running (red dot) until Quit. It has no console, so the log is the only thing to check.
+          Remove-Item dist\ptz_joystick.log -ErrorAction SilentlyContinue
+          Start-Process dist\ptz_joystick_tray.exe
+          $log = ""
+          foreach ($i in 1..30) {
+            Start-Sleep 1
+            $log = Get-Content dist\ptz_joystick.log -Raw -ErrorAction SilentlyContinue
+            if ($log -match "Set the camera password first") { break }
+          }
+          Get-Process ptz_joystick_tray -ErrorAction SilentlyContinue | Stop-Process -Force   # a onefile exe is two processes
+          if ($log -notmatch "Set the camera password first") { throw "tray exe did not log the password check:`n$log" }
+          $want = if ($env:GITHUB_REF_TYPE -eq "tag") { $env:GITHUB_REF_NAME } else { "dev" }
+          if ($log -notmatch "ptz_joystick $([regex]::Escape($want)) \(tray\)") { throw "tray exe logged no '$want (tray)' line:`n$log" }
+
       - uses: actions/upload-artifact@v7
         with:
           name: ptz_joystick
-          path: dist/ptz_joystick.exe
+          path: |
+            dist/ptz_joystick.exe
+            dist/ptz_joystick_tray.exe
 
       - name: Release
         if: startsWith(github.ref, 'refs/tags/v')
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create $env:GITHUB_REF_NAME dist\ptz_joystick.exe --repo $env:GITHUB_REPOSITORY --generate-notes
+        run: gh release create $env:GITHUB_REF_NAME dist\ptz_joystick.exe dist\ptz_joystick_tray.exe --repo $env:GITHUB_REPOSITORY --generate-notes
