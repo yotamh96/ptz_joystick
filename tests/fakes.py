@@ -1,4 +1,6 @@
-"""Stand-ins for a controller and a camera, shared by the app tests."""
+"""Stand-ins for a controller and a camera, and helpers, shared by the app tests."""
+import logging
+
 from ptz_joystick.controllers import ControllerState
 
 
@@ -39,3 +41,11 @@ class RecordingCamera:
 
 def moving(x=0.0, r=0.0):
     return ControllerState({"X": x, "Y": 0.0, "R": r}, 0)
+
+
+def reset_logging():
+    """Close the log file setup_logging() opened, so a temp folder can be deleted (Windows keeps open files)."""
+    root = logging.getLogger()
+    for h in root.handlers[:]:
+        h.close()
+        root.removeHandler(h)
