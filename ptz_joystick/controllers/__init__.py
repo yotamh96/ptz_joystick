@@ -26,6 +26,6 @@ class Controller(Protocol):
         may wait for the user. With no device, it raises SystemExit("<what to check>"). Annotate its return
         type, so mypy (in CI) can check the controller against this Protocol where CONTROLLERS lists it.
 
-        To add a controller: write the adapter, add a line to CONTROLLERS in app/adapters.py, and subclass
+        To add a controller: write the adapter, add a line to CONTROLLERS in app/registry.py, and subclass
         tests/contracts.py ControllerContract in its tests.
         """

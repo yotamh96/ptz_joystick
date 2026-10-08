@@ -2,12 +2,12 @@ import unittest
 from types import SimpleNamespace
 from unittest import mock
 
-import contracts
 import requests
 
 from ptz_joystick.cameras import ptzoptics
 from ptz_joystick.cameras.ptzoptics import PtzOpticsCamera, to_query
 from ptz_joystick.core.commands import PanTilt, Preset, SavePreset, Tracking, Zoom
+from tests import contracts
 
 
 class ToQueryTest(unittest.TestCase):

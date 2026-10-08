@@ -1,10 +1,9 @@
 import unittest
 from unittest import mock
 
-import contracts
-
 from ptz_joystick.controllers import ControllerState, winmm
 from ptz_joystick.controllers.winmm import JOYCAPSW, JOYINFOEX, WinmmController
+from tests import contracts
 
 
 def caps(**extra):
@@ -57,9 +56,6 @@ class WinmmControllerTest(contracts.ControllerContract):
     def test_buttons_pass_through(self):
         self.assertEqual(self.read(caps(), pos(buttons=0b101, X=50, Y=50)),
                          ControllerState({"X": 0.0, "Y": 0.0}, 0b101))
-
-    def test_unplugged_reads_none(self):
-        self.assertIsNone(self.read(caps(), None))
 
     def test_device_without_caps_is_rejected(self):
         with mock.patch.object(winmm, "_caps", return_value=None), self.assertRaises(OSError):

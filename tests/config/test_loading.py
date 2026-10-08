@@ -1,71 +1,12 @@
 import os
-import sys
 import tempfile
-import tomllib
 import unittest
-from dataclasses import fields
 from pathlib import Path
-from typing import Any
 from unittest import mock
 
 from ptz_joystick import config
 from ptz_joystick.config import Settings
-from ptz_joystick.core.commands import PanTilt, Preset
-
-
-class ValidationTest(unittest.TestCase):
-    def test_defaults_are_valid(self):
-        Settings()
-
-    def test_bad_values_named_in_error(self):
-        cases: list[tuple[dict[str, Any], str]] = [
-            ({"full_speed_at": 0.15}, "full_speed_at"),      # == deadzone: would divide by zero
-            ({"deadzone": 0.8}, "deadzone"),                 # above full_speed_at
-            ({"full_speed_at": 1.2}, "full_speed_at"),
-            ({"pan_axis": "x"}, "pan_axis"),
-            ({"zoom_axis": "W"}, "zoom_axis"),
-            ({"tilt_max": 0}, "tilt_max"),
-            ({"zoom_max": 2.5}, "zoom_max"),                 # each camera's own top: app.main.check_types
-            ({"timeout": 0}, "timeout"),
-            ({"timeout": 2.5}, "timeout"),                   # would eat the 3 s shutdown window
-            ({"timeout": float("inf")}, "timeout"),
-            ({"save_hold_seconds": -1}, "save_hold_seconds"),
-            ({"save_hold_seconds": 11}, "save_hold_seconds"),
-            ({"host": "192.168.77.3"}, "host"),              # missing http://
-            ({"buttons": {0: 1}}, "buttons"),                # not a command
-            ({"buttons": {0: PanTilt(1, 0)}}, "buttons"),    # a button-started move would never stop
-        ]
-        for bad, word in cases:
-            with self.subTest(bad=bad), self.assertRaisesRegex(ValueError, word):
-                Settings(**bad)
-
-
-class TemplateTest(unittest.TestCase):
-    def test_template_matches_defaults(self):
-        self.assertEqual(config.from_dict(tomllib.loads(config.TEMPLATE), "x"), Settings(password="x"))
-
-    def test_template_lists_every_setting(self):
-        self.assertEqual(set(tomllib.loads(config.TEMPLATE)), {f.name for f in fields(Settings)} - {"password"})
-
-    def test_written_once_never_overwritten(self):
-        with tempfile.TemporaryDirectory() as d:
-            path = Path(d) / config.FILE_NAME
-            self.assertTrue(config.write_template_if_missing(path))
-            path.write_text('host = "http://10.0.0.1"', encoding="utf-8")
-            self.assertFalse(config.write_template_if_missing(path))
-            self.assertEqual(path.read_text(encoding="utf-8"), 'host = "http://10.0.0.1"')
-
-
-class DefaultPathTest(unittest.TestCase):
-    def test_source_run_uses_repo_folder(self):
-        repo = Path(__file__).resolve().parent.parent      # tests/ sits in the repo folder
-        self.assertTrue((repo / "README.md").exists())
-        self.assertEqual(config.default_path(), repo / config.FILE_NAME)
-
-    def test_exe_uses_its_own_folder(self):
-        with mock.patch.object(sys, "frozen", True, create=True), \
-                mock.patch.object(sys, "executable", r"C:\tools\ptz_joystick.exe"):
-            self.assertEqual(config.default_path(), Path(r"C:\tools") / config.FILE_NAME)
+from ptz_joystick.core.commands import Preset
 
 
 class LoadTest(unittest.TestCase):

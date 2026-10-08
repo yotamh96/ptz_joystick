@@ -1,7 +1,7 @@
 """The rules every adapter must keep (the Camera and Controller docstrings), as tests.
 
-An adapter's test class subclasses one of these and fills in its hooks: see test_ptzoptics.py, test_winmm.py and
-test_keyboard.py. Import the module ("import contracts"), not the classes: unittest runs every TestCase it finds
+An adapter's test class subclasses one of these and fills in its hooks: see tests/cameras/test_ptzoptics.py,
+tests/controllers/test_winmm.py and test_keyboard.py. Import the module ("from tests import contracts"), not the classes: unittest runs every TestCase it finds
 in a test module, and a contract on its own has no hooks to run.
 """
 import unittest

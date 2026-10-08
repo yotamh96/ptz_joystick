@@ -122,7 +122,7 @@ To see what happened during a session, check the file afterwards. Set `debug = t
 From the repo folder:
 
 ```powershell
-python -m unittest discover tests
+python -m unittest discover -s tests -t .
 ```
 
 These need no camera and no controller. Fakes stand in for both.
@@ -184,12 +184,17 @@ Ports and adapters. The logic never touches hardware, so you can change it and t
 ```
 ptz_joystick/          the package
   __main__.py          python -m ptz_joystick → app/main.py
-  config.py            Settings (defaults + validation), ptz_joystick.toml loading and template
+  config/              every setting (import from config: config.load, config.Settings, ...)
+    settings.py        Settings: defaults + validation, BUTTON_COMMANDS
+    template.py        the settings file's name, where it lives, the template a first run writes
+    loading.py         ptz_joystick.toml → Settings (types, buttons, encodings, error messages)
   app/                 runs the program
-    main.py            composition root: builds the real adapters, runs the loop, logging setup
-    adapters.py        CAMERAS / CONTROLLERS: every type camera = / controller = can name
+    main.py            composition root: reads settings, builds the adapters, runs the checks, starts the loop
+    registry.py        CAMERAS / CONTROLLERS: every type camera = / controller = can name
+    checks.py          startup checks: known types, speed ceilings, camera answers, controller has the axes
+    loop.py            the control loop; always ends with the camera stopped
+    logs.py            terminal + log file setup
     updates.py         startup notice when a newer GitHub release exists (never downloads)
-    winconsole.py      Windows console close / logoff / shutdown → stop the camera
     version.py         "dev"; CI writes the tag here for release builds
   core/                the logic: no hardware, no I/O
     commands.py        PanTilt, Zoom, Preset: camera-agnostic, signed speeds, 0 = stop
@@ -197,13 +202,18 @@ ptz_joystick/          the package
     sender.py          background thread: latest command per type wins, retries until the camera accepts
   cameras/             Camera port (__init__.py) + ptzoptics.py adapter
   controllers/         Controller port (__init__.py) + winmm.py and keyboard.py adapters
-tests/                 unit tests with fake controller / camera
+  windows/             Windows plumbing that is neither program flow nor an adapter
+    console.py         console close / logoff / shutdown → stop the camera
+    focus.py           "is our window in front?" for controllers/keyboard.py
+tests/                 mirrors the package: tests/<folder>/test_<module>.py tests ptz_joystick/<folder>/<module>.py
+  test_entry_point.py  __main__.py: crashes go to the log, Ctrl+C stays quiet
   contracts.py         the port rules as tests; every adapter's tests subclass one
+  fakes.py             scripted controller and recording camera for the app tests
 ```
 
 Paths below are inside `ptz_joystick/` unless they start with `tests/`.
 
-The two ports are `typing.Protocol` classes, so an adapter only needs the right method; no base class. `mypy` checks that each adapter matches, at the spot where `app/main.py` plugs it in. The Protocols' docstrings hold the full rules an adapter must follow:
+The two ports are `typing.Protocol` classes, so an adapter only needs the right method; no base class. `mypy` checks that each adapter matches, where `app/registry.py` lists it. The Protocols' docstrings hold the full rules an adapter must follow:
 
 - `Controller.read() -> ControllerState | None` in `controllers/__init__.py` (None = unplugged)
 - `Camera.send(cmd: Command) -> bool` in `cameras/__init__.py` (True = camera took it)
@@ -212,7 +222,7 @@ The rules for commands are at the top of `core/commands.py`.
 
 ## Extending
 
-Users pick the camera and controller with `camera =` and `controller =` in `ptz_joystick.toml`. Each name comes from the `CAMERAS` / `CONTROLLERS` tables in `app/adapters.py`. Adding a type is one adapter file, one line in that table and one test class. Nothing else changes.
+Users pick the camera and controller with `camera =` and `controller =` in `ptz_joystick.toml`. Each name comes from the `CAMERAS` / `CONTROLLERS` tables in `app/registry.py`. Adding a type is one adapter file, one line in that table and one test class. Nothing else changes.
 
 ### Adding a camera (e.g. VISCA over IP)
 
@@ -220,13 +230,13 @@ Users pick the camera and controller with `camera =` and `controller =` in `ptz_
 2. Add `cameras/<name>.py` with:
    - a class that has `send(cmd) -> bool`
    - `TOP_SPEEDS = {"pan_max": …, "tilt_max": …, "zoom_max": …}`: the highest speed the camera accepts for each. Startup refuses settings above them.
-3. Add a line to `CAMERAS` in `app/adapters.py`: `"<name>": CameraType(lambda s: YourCamera(s.host, …), <name>.TOP_SPEEDS)`. `mypy` checks the class against `Camera` there.
-4. Add `tests/test_<name>.py` with a class that subclasses `contracts.CameraContract` (`import contracts`). Fill in two hooks:
+3. Add a line to `CAMERAS` in `app/registry.py`: `"<name>": CameraType(lambda s: YourCamera(s.host, …), <name>.TOP_SPEEDS)`. `mypy` checks the class against `Camera` there.
+4. Add `tests/cameras/test_<name>.py` with a class that subclasses `contracts.CameraContract` (`from tests import contracts`). Fill in two hooks:
    - `make(up)`: your camera with a fake connection that always works (`up=True`) or always fails
    - `top_speeds`
 
-   The contract checks that stops always work, every command is sent or refused with `TypeError`, a camera that's down returns `False` and logs once, and `TOP_SPEEDS` is complete. `tests/test_ptzoptics.py` is the example.
-5. Add `<name>` to the `camera` comment in `TEMPLATE` (`config.py`) and to the `camera` row in the Settings table above. A camera that needs new settings (a COM port, say) adds them to `Settings` and `TEMPLATE` too.
+   The contract checks that stops always work, every command is sent or refused with `TypeError`, a camera that's down returns `False` and logs once, and `TOP_SPEEDS` is complete. `tests/cameras/test_ptzoptics.py` is the example.
+5. Add `<name>` to the `camera` comment in `TEMPLATE` (`config/template.py`) and to the `camera` row in the Settings table above. A camera that needs new settings (a COM port, say) adds them to `Settings` (`config/settings.py`) and `TEMPLATE` too.
 
 If a camera adapter raises `TypeError` (a command it can't do at all), the sender logs it and drops that command. Any other error from an adapter counts as a refusal and is retried, so a network error can never lose a stop.
 
@@ -234,24 +244,24 @@ If a camera adapter raises `TypeError` (a command it can't do at all), the sende
 
 1. Read the rules on `Controller.read` in `controllers/__init__.py`.
 2. Add `controllers/<name>.py` with a class that has `read()`, and a function that takes `Settings` and returns a ready controller (like `keyboard.start`).
-3. Add a line to `CONTROLLERS` in `app/adapters.py`: `"<name>": <name>.start`. `mypy` checks it against `Controller` there.
-4. Add `tests/test_<name>.py` with a class that subclasses `contracts.ControllerContract`. Fill in three hooks:
+3. Add a line to `CONTROLLERS` in `app/registry.py`: `"<name>": <name>.start`. `mypy` checks it against `Controller` there.
+4. Add `tests/controllers/test_<name>.py` with a class that subclasses `contracts.ControllerContract`. Fill in three hooks:
    - `at_rest()`: a reading with sticks centred and nothing held
    - `full_push()`: a reading with every axis pushed to one end and only button 1 held
    - `unplugged()`: a reading with the device gone. Leave it out if the device can't be unplugged
 
-   The contract checks the axis letters, the -1..1 range, that button 1 is bit 0, and that unplugged reads `None`. `tests/test_winmm.py` and `tests/test_keyboard.py` are the examples.
-5. Add `<name>` to the `controller` comment in `TEMPLATE` (`config.py`) and to the `controller` row in the Settings table above.
+   The contract checks the axis letters, the -1..1 range, that button 1 is bit 0, and that unplugged reads `None`. `tests/controllers/test_winmm.py` and `test_keyboard.py` are the examples.
+5. Add `<name>` to the `controller` comment in `TEMPLATE` (`config/template.py`) and to the `controller` row in the Settings table above.
 
 ### New button action (home, focus, …)
 
 1. Read the rules at the top of `core/commands.py`: a complete instruction that is safe to send twice.
 2. Add a frozen dataclass there and add it to `Command`.
-3. Give it a name in `BUTTON_COMMANDS` in `config.py`, then map a button to it in `ptz_joystick.toml`.
+3. Give it a name in `BUTTON_COMMANDS` in `config/settings.py`, then map a button to it in `ptz_joystick.toml`.
 4. Add an example to `EXAMPLES` in `tests/contracts.py`, and a `case` for it in every camera's adapter (`to_query()` in `cameras/ptzoptics.py`). The contract tests fail until you do both.
 
 The sender needs no change: anything that isn't a stick move gets 3 tries, then is dropped.
 
 ### Speed curve / deadzone behaviour
 
-`core/mapping.py` only, covered by `tests/test_mapping.py`.
+`core/mapping.py` only, covered by `tests/core/test_mapping.py`.
