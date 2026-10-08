@@ -6,6 +6,7 @@ from pathlib import Path
 
 from .. import config
 from ..core.sender import CommandSender
+from ..windows import single_instance
 from ..windows.console import on_console_close
 from . import updates
 from .checks import check_axes, check_camera
@@ -15,6 +16,7 @@ from .startup import prepare
 from .version import VERSION
 
 log = logging.getLogger(__name__)
+ALREADY_RUNNING = "ptz_joystick is already running. Quit it first: tray icon or its console window."
 
 
 def main(argv=None):
@@ -24,6 +26,8 @@ def main(argv=None):
     parser.add_argument("--version", action="version", version=VERSION)
     parser.add_argument("--keyboard", action="store_true", help="same as controller = \"keyboard\" in the settings file")
     args = parser.parse_args(argv)
+    if not single_instance.claim():
+        raise SystemExit(ALREADY_RUNNING)
     path = args.config
     s = prepare(path, args.keyboard)
     if s.check_updates:
