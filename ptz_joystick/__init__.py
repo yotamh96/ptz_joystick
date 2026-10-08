@@ -1,6 +1,7 @@
 """Game controller -> PTZ camera.
 
 Run:   python -m ptz_joystick          (from the repo folder, the one with README.md)
+       python -m ptz_joystick --tray   (as an icon in the notification area)
 Test:  python -m unittest discover -s tests -t .
 Needs: pip install -r requirements.txt,  setx PTZ_PASSWORD "..."
 

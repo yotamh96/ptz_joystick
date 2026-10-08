@@ -22,6 +22,15 @@ mypy
 
 `mypy` reads its settings from `mypy.ini`. It is what checks that every camera and controller matches its Protocol.
 
+## The tray from source
+
+```powershell
+python -m ptz_joystick --tray     # the tray icon, plus the log in this terminal
+pythonw -m ptz_joystick --tray    # the tray icon only, like ptz_joystick_tray.exe
+```
+
+Quit from the tray menu, or close the terminal. Ctrl+C doesn't reach the tray's message loop.
+
 ## How it's built
 
 Ports and adapters. The logic never touches hardware, so you can change it and test it without a camera.
@@ -34,7 +43,12 @@ ptz_joystick/          the package
     template.py        the settings file's name, where it lives, the template a first run writes
     loading.py         ptz_joystick.toml → Settings (types, buttons, encodings, error messages)
   app/                 runs the program
-    main.py            composition root: reads settings, builds the adapters, runs the checks, starts the loop
+    main.py            composition root: reads settings, builds the adapters, runs the checks, starts the loop;
+                       --tray hands over to tray.py
+    startup.py         the startup steps both modes share: settings file, settings, checks, logging
+    tray.py            tray mode: hidden window, icon, menu, one session at a time
+    session.py         one tray session on its own thread: the startup steps, then the loop
+    status.py          what the tray shows: dot color, status text, pop-ups (plain rules)
     registry.py        CAMERAS / CONTROLLERS: every type camera = / controller = can name
     checks.py          startup checks: known types, speed ceilings, camera answers, controller has the axes
     loop.py            the control loop; always ends with the camera stopped
@@ -50,10 +64,16 @@ ptz_joystick/          the package
   windows/             Windows plumbing that is neither program flow nor an adapter
     console.py         console close / logoff / shutdown → stop the camera
     focus.py           "is our window in front?" for controllers/keyboard.py
+    single_instance.py "already running?": a named mutex both exes share
+    autostart.py       Start with Windows: the HKCU Run key
+    user_env.py        PTZ_PASSWORD as setx left it (HKCU\Environment)
+    message_box.py     a message box, for errors before the tray icon exists
+    tray/              the tray's Windows API: window.py (message loop), icon.py, menu.py, dots.py
 tests/                 mirrors the package: tests/<folder>/test_<module>.py tests ptz_joystick/<folder>/<module>.py
   test_entry_point.py  __main__.py: crashes go to the log, Ctrl+C stays quiet
   contracts.py         the port rules as tests; every adapter's tests subclass one
   fakes.py             scripted controller and recording camera for the app tests
+  windows/scratch_key.py  a throwaway registry key for the registry tests (never the real Run key)
 ```
 
 Paths below are inside `ptz_joystick/` unless they start with `tests/`.

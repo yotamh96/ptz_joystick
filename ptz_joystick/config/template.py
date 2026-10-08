@@ -5,7 +5,7 @@ from pathlib import Path
 FILE_NAME = "ptz_joystick.toml"
 
 TEMPLATE = """\
-# ptz_joystick settings. Edit, save, restart ptz_joystick.
+# ptz_joystick settings. Edit, save, then restart ptz_joystick (tray: right-click → Restart).
 # The camera password is not here: set it with  setx PTZ_PASSWORD "..."
 
 camera = "ptzoptics"            # camera type: ptzoptics
