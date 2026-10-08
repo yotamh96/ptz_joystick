@@ -1,7 +1,9 @@
 import logging
 import os
+import sys
 import tempfile
 import unittest
+from unittest import mock
 
 from ptz_joystick.app.logs import setup_logging
 from ptz_joystick.config import Settings
@@ -34,6 +36,15 @@ class SetupLoggingTest(unittest.TestCase):
         setup_logging(Settings(log_file=""))
         try:
             self.assertFalse(any(isinstance(h, logging.FileHandler) for h in logging.getLogger().handlers))
+        finally:
+            for h in logging.getLogger().handlers[:]:
+                logging.getLogger().removeHandler(h)
+
+    def test_no_terminal_no_terminal_handler(self):
+        with mock.patch.object(sys, "stderr", None):        # pythonw, or the windowed tray exe
+            setup_logging(Settings(log_file=""))
+        try:
+            self.assertEqual(logging.getLogger().handlers, [])
         finally:
             for h in logging.getLogger().handlers[:]:
                 logging.getLogger().removeHandler(h)

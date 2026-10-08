@@ -81,6 +81,13 @@ class BackgroundTest(unittest.TestCase):
         self.assertEqual(len(logs.output), 1)
         self.assertIn("Update available: v0.3.0 (you have v0.2.0) https://example/v0.3.0", logs.output[0])
 
+    def test_on_found_gets_tag_and_url(self):
+        found: list[tuple[str, str]] = []
+        with self.assertLogs("ptz_joystick.app.updates", "INFO"):
+            updates.check_in_background("v0.2.0", FakeGet(release("v0.3.0")),
+                                        on_found=lambda tag, url: found.append((tag, url))).join(5)
+        self.assertEqual(found, [("v0.3.0", "https://example/v0.3.0")])
+
     def test_silent_when_current(self):
         with self.assertNoLogs("ptz_joystick.app.updates", "INFO"):
             updates.check_in_background("v0.3.0", FakeGet(release("v0.3.0"))).join(5)
