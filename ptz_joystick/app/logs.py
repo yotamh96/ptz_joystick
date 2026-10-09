@@ -1,5 +1,6 @@
-"""Where log lines go: the terminal, plus the log file from the settings."""
+"""Where log lines go: the terminal (when there is one), plus the log file from the settings."""
 import logging
+import sys
 
 from ..config import Settings
 
@@ -7,8 +8,9 @@ log = logging.getLogger(__name__)
 
 
 def setup_logging(s: Settings):
-    """Terminal always; plus s.log_file if set. debug=True adds per-command and per-reading lines."""
-    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    """Terminal when there is one (not in the tray exe); plus s.log_file if set. debug=True adds per-command and
+    per-reading lines."""
+    handlers: list[logging.Handler] = [logging.StreamHandler()] if sys.stderr else []
     file_error: OSError | None = None
     if s.log_file:
         try:
