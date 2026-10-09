@@ -11,7 +11,12 @@ user32.SendMessageW.restype = window.LRESULT
 user32.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
 user32.SendNotifyMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
 user32.PostThreadMessageW.argtypes = [wintypes.DWORD, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+user32.IsWindow.argtypes = [wintypes.HWND]
 WM_NULL, WM_RBUTTONUP = 0x0000, 0x0205
+
+
+def nothing():
+    pass
 
 
 class HiddenWindowTest(unittest.TestCase):
@@ -19,7 +24,8 @@ class HiddenWindowTest(unittest.TestCase):
         self.calls: list[tuple] = []
         self.window = window.HiddenWindow(on_tray=lambda event: self.calls.append(("tray", event)),
                                           on_end_session=lambda: self.calls.append(("end",)),
-                                          on_taskbar_created=lambda: self.calls.append(("taskbar",)))
+                                          on_taskbar_created=lambda: self.calls.append(("taskbar",)),
+                                          on_close=lambda: self.calls.append(("close",)))
         self.addCleanup(self.window.quit)
 
     def send(self, msg, wparam=0, lparam=0):
@@ -46,7 +52,8 @@ class HiddenWindowTest(unittest.TestCase):
         def quit_on_click(event):
             w.quit()
 
-        w = window.HiddenWindow(on_tray=quit_on_click, on_end_session=lambda: None, on_taskbar_created=lambda: None)
+        w = window.HiddenWindow(on_tray=quit_on_click, on_end_session=nothing, on_taskbar_created=nothing,
+                                on_close=nothing)
         self.addCleanup(w.quit)
         nudge = threading.Timer(3, user32.PostThreadMessageW, args=(threading.get_native_id(), WM_NULL, 0, 0))
         nudge.start()                           # a stuck loop wakes after 3 s instead of hanging the test run
@@ -67,11 +74,19 @@ class HiddenWindowTest(unittest.TestCase):
         self.send(self.window.taskbar_created)
         self.assertEqual(self.calls, [("tray", WM_RBUTTONUP), ("taskbar",)])
 
+    def test_a_close_request_goes_to_its_handler(self):
+        """taskkill without /f sends WM_CLOSE. The app must quit (stopping the camera); left to Windows, the
+        window would just be destroyed while the session drove on."""
+        self.send(window.WM_CLOSE)
+        self.assertEqual(self.calls, [("close",)])
+        self.assertTrue(user32.IsWindow(self.window.hwnd))
+
     def test_a_failing_handler_is_logged_and_the_window_lives_on(self):
         def boom():
             raise RuntimeError("icon gone")
 
-        w = window.HiddenWindow(on_tray=lambda event: None, on_end_session=boom, on_taskbar_created=boom)
+        w = window.HiddenWindow(on_tray=lambda event: None, on_end_session=boom, on_taskbar_created=boom,
+                                on_close=boom)
         self.addCleanup(w.quit)
         with self.assertLogs("ptz_joystick.windows.tray.window", "ERROR"):
             user32.SendMessageW(w.hwnd, window.WM_ENDSESSION, 1, 0)

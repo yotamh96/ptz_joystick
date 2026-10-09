@@ -53,7 +53,7 @@ class TrayApp:
         self._path, self._keyboard = path, keyboard
         self._status = Status(str(bootstrap_log(path)))
         self._window = HiddenWindow(on_tray=self._clicked, on_end_session=self.shutdown,
-                                    on_taskbar_created=self._taskbar_created)
+                                    on_taskbar_created=self._taskbar_created, on_close=self.quit)
         self._icon = TrayIcon(self._window.hwnd, WM_APP_TRAY, later=self._later)
         self._dots = {color: dots.dot_icon(color) for color in (GREEN, YELLOW, RED)}
         self._session = 0                   # the current session's number: older sessions' news is dropped

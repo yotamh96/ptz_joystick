@@ -15,8 +15,9 @@ WM_MOUSEMOVE, WM_RBUTTONUP = 0x0200, 0x0205
 class FakeWindow:
     """Stands in for HiddenWindow: post() queues the call; pump() runs the queue, as the message loop would."""
 
-    def __init__(self, on_tray, on_end_session, on_taskbar_created):
+    def __init__(self, on_tray, on_end_session, on_taskbar_created, on_close):
         self.on_tray, self.on_end_session, self.on_taskbar_created = on_tray, on_end_session, on_taskbar_created
+        self.on_close = on_close
         self.hwnd = 1
         self.queued: list = []
         self.closed = False
@@ -155,6 +156,14 @@ class TrayAppTest(unittest.TestCase):
         self.window.on_end_session()
         self.assertIn(stop, self.sessions.ended)
         self.assertTrue(self.icon.removed)
+
+    def test_a_close_request_quits(self):
+        self.app.start_session()
+        stop, _, _ = self.session(1)
+        self.window.on_close()                                  # taskkill without /f
+        self.assertIn(stop, self.sessions.ended)                # the camera was stopped
+        self.assertTrue(self.icon.removed)
+        self.assertTrue(self.window.closed)
 
     def test_explorer_restart_re_adds_the_icon(self):
         self.window.on_taskbar_created()

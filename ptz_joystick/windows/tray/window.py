@@ -13,7 +13,7 @@ log = logging.getLogger(__name__)
 
 LRESULT = ctypes.c_ssize_t
 WNDPROC = ctypes.WINFUNCTYPE(LRESULT, wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM)
-WM_QUERYENDSESSION, WM_ENDSESSION = 0x0011, 0x0016
+WM_CLOSE, WM_QUERYENDSESSION, WM_ENDSESSION = 0x0010, 0x0011, 0x0016
 WM_APP_CALL = 0x8001                # WM_APP + 1: "run the next call post() queued"
 WM_APP_TRAY = 0x8002                # WM_APP + 2: the tray icon's mouse messages (icon.py asks for this number)
 MSGFLT_ALLOW = 1
@@ -55,9 +55,10 @@ class HiddenWindow:
     """Make it on the thread that will call run(): Windows hands a window's messages to the thread that made it."""
 
     def __init__(self, on_tray: Callable[[int], None], on_end_session: Callable[[], None],
-                 on_taskbar_created: Callable[[], None]):
+                 on_taskbar_created: Callable[[], None], on_close: Callable[[], None]):
         # Everything _handle() uses is set before CreateWindowExW, which already sends the window messages.
         self._on_tray, self._on_end_session, self._on_taskbar_created = on_tray, on_end_session, on_taskbar_created
+        self._on_close = on_close
         self._calls: queue.SimpleQueue[Callable[[], None]] = queue.SimpleQueue()
         self.taskbar_created = user32.RegisterWindowMessageW("TaskbarCreated")
         self._proc = WNDPROC(self._handle)      # kept alive here: Windows calls it as long as the window exists
@@ -114,6 +115,8 @@ class HiddenWindow:
                     self._on_end_session()
             elif msg == self.taskbar_created:
                 self._on_taskbar_created()
+            elif msg == WM_CLOSE:                   # taskkill without /f: quit properly, don't just lose the window
+                self._on_close()
             else:
                 return user32.DefWindowProcW(hwnd, msg, wparam, lparam)
         except Exception:                       # ctypes would swallow it: log it instead
