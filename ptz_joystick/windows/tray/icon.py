@@ -79,7 +79,10 @@ class TrayIcon:
     def _add(self):
         if self._added or self._removed:
             return
-        if self._send(NIM_ADD, NIF_MESSAGE | NIF_ICON | NIF_TIP):
+        flags = NIF_MESSAGE | NIF_ICON | NIF_TIP
+        # NIM_ADD also fails while Explorer still has our icon: TaskbarCreated after a DPI or monitor change, or an
+        # add that timed out at sign-in but worked. NIM_MODIFY then takes the icon over instead of retrying forever.
+        if self._send(NIM_ADD, flags) or self._send(NIM_MODIFY, flags):
             self._added = True
             if self._pending:
                 pending, self._pending = self._pending, None
