@@ -29,7 +29,7 @@ python -m ptz_joystick --tray     # the tray icon, plus the log in this terminal
 pythonw -m ptz_joystick --tray    # the tray icon only, like ptz_joystick_tray.exe
 ```
 
-Quit from the tray menu, or close the terminal. Ctrl+C doesn't reach the tray's message loop.
+Quit from the tray menu, or close the terminal. Ctrl+C works too, at the tray's next window message (moving the mouse over the icon sends one). All three stop the camera first.
 
 ## How it's built
 

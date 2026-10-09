@@ -34,7 +34,10 @@ def run_tray(path: Path, keyboard: bool):
     if sys.stderr:                  # started from a terminal (--tray while developing): closing it is a Quit
         on_console_close(app.shutdown)
     app.start_session()
-    app.run()
+    try:
+        app.run()
+    finally:                        # also on Ctrl+C in that terminal: never leave the camera moving
+        app.shutdown()
 
 
 def bootstrap_log(path: Path) -> Path:

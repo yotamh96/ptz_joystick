@@ -169,6 +169,26 @@ class TrayAppTest(unittest.TestCase):
         self.window.on_taskbar_created()
         self.assertEqual(self.icon.readded, 1)
 
+    def test_ctrl_c_in_a_terminal_still_stops_the_camera(self):
+        icons: list[FakeIcon] = []
+
+        class Recorded(FakeIcon):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                icons.append(self)
+
+        class Interrupted(FakeWindow):
+            def run(self):
+                raise KeyboardInterrupt                         # Ctrl+C lands at the loop's next window message
+
+        with mock.patch.object(tray, "HiddenWindow", Interrupted), mock.patch.object(tray, "TrayIcon", Recorded), \
+                mock.patch.object(tray, "setup_logging"), mock.patch.object(tray, "on_console_close"), \
+                self.assertRaises(KeyboardInterrupt):
+            tray.run_tray(SETTINGS, keyboard=False)
+        stop, _, _ = self.session(1)
+        self.assertIn(stop, self.sessions.ended)                # joined: the loop's finally stopped the camera
+        self.assertTrue(icons[-1].removed)
+
     def test_a_click_opens_the_menu_and_runs_the_pick(self):
         with mock.patch.object(tray.menu, "show", side_effect=lambda hwnd, entries: entries[-1]) as show:   # Quit
             self.window.on_tray(WM_MOUSEMOVE)                   # the mouse passing over: nothing
