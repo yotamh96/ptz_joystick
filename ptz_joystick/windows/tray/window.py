@@ -43,6 +43,7 @@ user32.GetMessageW.argtypes = [ctypes.POINTER(wintypes.MSG), wintypes.HWND, wint
 user32.TranslateMessage.argtypes = [ctypes.POINTER(wintypes.MSG)]
 user32.DispatchMessageW.restype = LRESULT
 user32.DispatchMessageW.argtypes = [ctypes.POINTER(wintypes.MSG)]
+user32.PostQuitMessage.argtypes = [ctypes.c_int]
 user32.RegisterWindowMessageW.restype = wintypes.UINT
 user32.RegisterWindowMessageW.argtypes = [wintypes.LPCWSTR]
 user32.ChangeWindowMessageFilterEx.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.DWORD, wintypes.LPVOID]
@@ -70,7 +71,7 @@ class HiddenWindow:
                                            None)
         if not self.hwnd:
             raise ctypes.WinError(ctypes.get_last_error())
-        self._alive = True
+        self._alive, self._running = True, False
         user32.ChangeWindowMessageFilterEx(self.hwnd, self.taskbar_created, MSGFLT_ALLOW, None)  # in case elevated
 
     def post(self, fn: Callable[[], None]):
@@ -80,17 +81,25 @@ class HiddenWindow:
 
     def run(self):
         """Handle messages until quit()."""
+        if not self._alive:
+            return
         msg = wintypes.MSG()
-        while self._alive and user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:
-            user32.TranslateMessage(ctypes.byref(msg))
-            user32.DispatchMessageW(ctypes.byref(msg))
+        self._running = True
+        try:
+            while user32.GetMessageW(ctypes.byref(msg), None, 0, 0) > 0:      # 0: the WM_QUIT from quit()
+                user32.TranslateMessage(ctypes.byref(msg))
+                user32.DispatchMessageW(ctypes.byref(msg))
+        finally:
+            self._running = False
 
     def quit(self):
-        """Close the window, which ends run(). On the window's thread; from another, post(window.quit)."""
+        """Close the window and end run(). On the window's thread; from another, post(window.quit)."""
         if self._alive:
             self._alive = False
             user32.DestroyWindow(self.hwnd)
             user32.UnregisterClassW(self._class, self._instance)
+            if self._running:       # WM_QUIT wakes GetMessageW even when quit() runs inside it (a sent tray click)
+                user32.PostQuitMessage(0)
 
     def _handle(self, hwnd, msg, wparam, lparam):
         try:

@@ -1,14 +1,17 @@
 import ctypes
 import threading
+import time
 import unittest
 from ctypes import wintypes
 
 from ptz_joystick.windows.tray import window
 
-user32 = ctypes.WinDLL("user32")        # own copy, for SendMessageW
+user32 = ctypes.WinDLL("user32")        # own copy, for sending messages the way Windows does
 user32.SendMessageW.restype = window.LRESULT
 user32.SendMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
-WM_RBUTTONUP = 0x0205
+user32.SendNotifyMessageW.argtypes = [wintypes.HWND, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+user32.PostThreadMessageW.argtypes = [wintypes.DWORD, wintypes.UINT, wintypes.WPARAM, wintypes.LPARAM]
+WM_NULL, WM_RBUTTONUP = 0x0000, 0x0205
 
 
 class HiddenWindowTest(unittest.TestCase):
@@ -36,6 +39,22 @@ class HiddenWindowTest(unittest.TestCase):
         threading.Thread(target=elsewhere).start()
         self.window.run()                       # returns once the posted quit ran
         self.assertEqual(ran_on, [threading.get_ident()])
+
+    def test_quit_from_a_tray_click_ends_the_loop(self):
+        """Explorer sends tray clicks (SendNotifyMessage), so the menu's Quit runs inside GetMessageW. It must still
+        end run(), or the process lives on with no window and keeps the 'already running' claim."""
+        def quit_on_click(event):
+            w.quit()
+
+        w = window.HiddenWindow(on_tray=quit_on_click, on_end_session=lambda: None, on_taskbar_created=lambda: None)
+        self.addCleanup(w.quit)
+        nudge = threading.Timer(3, user32.PostThreadMessageW, args=(threading.get_native_id(), WM_NULL, 0, 0))
+        nudge.start()                           # a stuck loop wakes after 3 s instead of hanging the test run
+        self.addCleanup(nudge.cancel)
+        threading.Thread(target=user32.SendNotifyMessageW, args=(w.hwnd, window.WM_APP_TRAY, 0, WM_RBUTTONUP)).start()
+        started = time.monotonic()
+        w.run()
+        self.assertLess(time.monotonic() - started, 1.5)
 
     def test_logoff_and_shutdown_reach_the_handler(self):
         self.assertEqual(self.send(window.WM_QUERYENDSESSION), 1)
