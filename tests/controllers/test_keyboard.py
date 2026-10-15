@@ -61,7 +61,8 @@ class StartTest(unittest.TestCase):
     def test_warns_when_not_admin_as_zao_keys_are_hidden(self):
         with self.assertLogs("ptz_joystick.controllers.keyboard", "WARNING") as logs:
             self.start(admin=False)
-        self.assertIn(keyboard.NOT_ADMIN, logs.output[-1])
+        self.assertIn("Not running as administrator. Run ptz_joystick as administrator. (Zao Virtual Cabin runs as "
+                      "admin, and Windows hides the keys typed into it from other programs)", logs.output[-1])
 
     def test_no_warning_as_admin(self):
         with self.assertNoLogs("ptz_joystick.controllers.keyboard", "WARNING"):
