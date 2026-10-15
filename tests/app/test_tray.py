@@ -7,6 +7,7 @@ from unittest import mock
 
 from ptz_joystick.app import tray
 from ptz_joystick.app.status import GREEN, RED, YELLOW
+from ptz_joystick.core.problem import Problem, crashed
 
 SETTINGS = Path(r"C:\Users\op\OneDrive - Draco\ptz_joystick.toml")
 WM_MOUSEMOVE, WM_RBUTTONUP = 0x0200, 0x0205
@@ -103,15 +104,16 @@ class TrayAppTest(unittest.TestCase):
         _, report, _ = self.session(1)
         report.driving("http://cam")
         self.window.pump()
-        self.assertEqual(self.icon.shown[-1], (GREEN, "ptz_joystick: Driving http://cam"))
+        self.assertEqual(self.icon.shown[-1], (GREEN, "ptz_joystick: Driving the camera at http://cam"))
 
     def test_red_pops_up_as_an_error(self):
         self.app.start_session()
         _, report, _ = self.session(1)
-        report.stopped("Set the camera password first")
+        report.stopped(Problem("The camera password is not set", fix='Run setx PTZ_PASSWORD "..." in a terminal'))
         self.window.pump()
         self.assertEqual(self.icon.shown[-1][0], RED)
-        self.assertEqual(self.icon.popups, [("Set the camera password first", tray.NIIF_ERROR)])
+        text = 'The camera password is not set. Run setx PTZ_PASSWORD "..." in a terminal, then click Restart.'
+        self.assertEqual(self.icon.popups, [(text, tray.NIIF_ERROR)])
 
     def test_restart_stops_the_old_session_and_starts_a_new_one(self):
         self.app.start_session()
@@ -128,7 +130,7 @@ class TrayAppTest(unittest.TestCase):
         self.app.restart()
         _, new, _ = self.session(2)
         new.driving("http://cam")
-        old.stopped("Crashed: RuntimeError('late'). See the log.")
+        old.stopped(crashed(RuntimeError("late")))
         self.window.pump()
         self.assertEqual(self.icon.shown[-1][0], GREEN)
         self.assertEqual(self.icon.popups, [])

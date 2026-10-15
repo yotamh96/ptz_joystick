@@ -2,6 +2,9 @@
 Windows calls; app/tray.py feeds them events and draws the result."""
 from dataclasses import dataclass
 
+from ..core.problem import Problem
+from .loop import CONTROLLER_UNPLUGGED
+
 GREEN, YELLOW, RED = (0x22, 0xA0, 0x45), (0xF0, 0xB0, 0x00), (0xD0, 0x30, 0x30)
 CLICK_RESTART = "click Restart"     # the tray's restart step, after a problem that stopped the session
 
@@ -21,7 +24,7 @@ class Status:
         self._host: str | None = None           # set while driving
         self._waiting_for_stick = self._prompted = False
         self._controller_ok = self._camera_ok = True
-        self._camera_why = ""
+        self._camera_problem: Problem | None = None
 
     @property
     def tooltip(self) -> str:
@@ -35,8 +38,8 @@ class Status:
     def log_to(self, log_file: str) -> None:
         self.log_file = log_file
 
-    def waiting_for_camera(self, host: str, why: str) -> None:
-        self._phase(YELLOW, f"Waiting for camera at {host}: {why}" if why else f"Waiting for camera at {host}")
+    def waiting_for_camera(self, host: str, problem: Problem | None) -> None:
+        self._phase(YELLOW, problem.text() if problem else f"Waiting for the camera at {host}")
 
     def waiting_for_stick(self) -> None:
         self._phase(YELLOW, "Move the left stick to start")
@@ -49,11 +52,11 @@ class Status:
         self._prompted = True
         return Popup("Move the left stick to start", "info")
 
-    def no_controller(self, message: str) -> None:
-        self._phase(YELLOW, message)
+    def no_controller(self, problem: Problem) -> None:
+        self._phase(YELLOW, problem.text())
 
     def driving(self, host: str) -> None:
-        self._phase(GREEN, f"Driving {host}")
+        self._phase(GREEN, f"Driving the camera at {host}")
         self._host = host
         self._controller_ok = self._camera_ok = True
 
@@ -63,18 +66,19 @@ class Status:
         unplugged = self._controller_ok and not ok
         self._controller_ok = ok
         self._show_driving()
-        return Popup("Controller unplugged. Camera stopped. Plug it back in.", "warning") if unplugged else None
+        return Popup(CONTROLLER_UNPLUGGED.text(), "warning") if unplugged else None
 
-    def camera(self, ok: bool, why: str) -> None:
+    def camera(self, ok: bool, problem: Problem | None) -> None:
         """Icon only: the camera drops every minute or two on this network, a pop-up each time would be noise."""
         if self._host is None:
             return
-        self._camera_ok, self._camera_why = ok, why
+        self._camera_ok, self._camera_problem = ok, problem
         self._show_driving()
 
-    def stopped(self, message: str) -> Popup:
-        self._phase(RED, message)
-        return Popup(message, "error")
+    def stopped(self, problem: Problem) -> Popup:
+        text = problem.text(then=CLICK_RESTART)
+        self._phase(RED, text)
+        return Popup(text, "error")
 
     def update(self, tag: str) -> Popup:
         return Popup(f"Update available: {tag}", "info")
@@ -85,9 +89,9 @@ class Status:
 
     def _show_driving(self):
         if not self._controller_ok:             # an unplugged controller explains more than a silent camera
-            self.color, self.text = YELLOW, "Controller unplugged: plug it back in"
+            self.color, self.text = YELLOW, CONTROLLER_UNPLUGGED.text()
         elif not self._camera_ok:
             self.color = YELLOW
-            self.text = f"Camera not answering: {self._camera_why}" if self._camera_why else "Camera not answering"
+            self.text = self._camera_problem.text() if self._camera_problem else "The camera is not answering"
         else:
-            self.color, self.text = GREEN, f"Driving {self._host}"
+            self.color, self.text = GREEN, f"Driving the camera at {self._host}"

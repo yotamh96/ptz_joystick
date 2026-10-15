@@ -71,7 +71,7 @@ def discover() -> WinmmController:
     if not start:
         raise Problem("No controller found", fix="Plug it in and check that it shows in joy.cpl")
     log.info("Joystick IDs found: %s", list(start))
-    log.info("Move the left stick now...")
+    log.info("Move the left stick to start")
     while True:
         for d, axes0 in start.items():
             st = found[d].read()

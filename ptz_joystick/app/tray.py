@@ -7,6 +7,7 @@ import threading
 from collections.abc import Callable
 from pathlib import Path
 
+from ..core.problem import Problem
 from ..windows import autostart
 from ..windows.console import on_console_close
 from ..windows.tray import dots, menu
@@ -154,8 +155,8 @@ class _Report:
     def log_to(self, log_file: str) -> None:
         self._send(lambda s: s.log_to(log_file))
 
-    def waiting_for_camera(self, host: str, why: str) -> None:
-        self._send(lambda s: s.waiting_for_camera(host, why))
+    def waiting_for_camera(self, host: str, problem: Problem | None) -> None:
+        self._send(lambda s: s.waiting_for_camera(host, problem))
 
     def waiting_for_stick(self) -> None:
         self._send(lambda s: s.waiting_for_stick())
@@ -163,8 +164,8 @@ class _Report:
     def stick_prompt(self) -> None:
         self._send(lambda s: s.stick_prompt())
 
-    def no_controller(self, message: str) -> None:
-        self._send(lambda s: s.no_controller(message))
+    def no_controller(self, problem: Problem) -> None:
+        self._send(lambda s: s.no_controller(problem))
 
     def driving(self, host: str) -> None:
         self._send(lambda s: s.driving(host))
@@ -172,11 +173,11 @@ class _Report:
     def controller(self, ok: bool) -> None:
         self._send(lambda s: s.controller(ok))
 
-    def camera(self, ok: bool, why: str) -> None:
-        self._send(lambda s: s.camera(ok, why))
+    def camera(self, ok: bool, problem: Problem | None) -> None:
+        self._send(lambda s: s.camera(ok, problem))
 
-    def stopped(self, message: str) -> None:
-        self._send(lambda s: s.stopped(message))
+    def stopped(self, problem: Problem) -> None:
+        self._send(lambda s: s.stopped(problem))
 
     def update(self, tag: str, url: str) -> None:
         self._app.apply(None, lambda s: s.update(tag))      # from no session in particular: a Restart mustn't lose it

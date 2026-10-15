@@ -76,5 +76,5 @@ def _console(path: Path, keyboard: bool):
         stop_camera(sender)
 
     on_console_close(console_closing)
-    log.info("Driving camera %s. Ctrl+C to quit.", s.host)
+    log.info("Driving the camera at %s. Ctrl+C to quit.", s.host)
     run(s, controller, sender)

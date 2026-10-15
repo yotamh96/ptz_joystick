@@ -1,4 +1,3 @@
-import logging
 import os
 import tempfile
 import threading
@@ -28,7 +27,8 @@ STOPS = {PanTilt: PanTilt(0, 0), Zoom: Zoom(0)}
 
 
 class FlakyCamera(RecordingCamera):
-    """Answers from a script (True = took it), then `then`. Logs why it refused, like a real adapter."""
+    """Answers from a script (True = took it), then `then`. Says why it refused, like a real adapter."""
+    WHY = Problem("Can't reach the camera", detail="timed out")
 
     def __init__(self, *answers, then=True):
         super().__init__()
@@ -37,8 +37,7 @@ class FlakyCamera(RecordingCamera):
     def send(self, cmd):
         super().send(cmd)
         ok = self.answers.pop(0) if self.answers else self.then
-        if not ok:
-            logging.getLogger("ptz_joystick.cameras.fake").warning("camera unreachable: timed out")
+        self.problem = None if ok else self.WHY
         return ok
 
 
@@ -49,7 +48,7 @@ def _recorder(name):
 
 
 class RecordingReport:
-    """A session's report, as tuples: ("driving", host), ("camera", ok, why), ..."""
+    """A session's report, as tuples: ("driving", host), ("camera", ok, problem), ..."""
 
     def __init__(self):
         self.calls: list[tuple] = []
@@ -106,21 +105,21 @@ class SessionTest(unittest.TestCase):
         self.run_session()
         self.assertEqual(self.names(), ["log_to", "waiting_for_camera", "waiting_for_camera", "waiting_for_stick",
                                         "driving"])
-        self.assertIn(("waiting_for_camera", HOST, "camera unreachable: timed out"), self.report.calls)
+        self.assertIn(("waiting_for_camera", HOST, FlakyCamera.WHY), self.report.calls)
         self.assertEqual({type(c): c for c in self.camera.calls}, STOPS)
 
     def test_missing_password_is_red_with_the_fix(self):
         del os.environ["PTZ_PASSWORD"]
         logs = self.run_session()
-        text = 'The camera password is not set. Run setx PTZ_PASSWORD "..." in a terminal, then click Restart.'
-        self.assertEqual(self.report.calls, [("stopped", text)])
+        [(name, problem)] = self.report.calls
+        self.assertEqual((name, problem.what), ("stopped", "The camera password is not set"))
         self.assertTrue(any(line.startswith("ERROR") and "then click Restart" in line for line in logs.output))
 
     def test_no_controller_waits_and_tries_again(self):
         self.controllers.insert(0, NO_PAD)
         self.run_session()
         self.assertEqual(self.names(), ["log_to", "waiting_for_stick", "no_controller", "waiting_for_stick", "driving"])
-        self.assertIn(("no_controller", NO_PAD.text()), self.report.calls)
+        self.assertIn(("no_controller", NO_PAD), self.report.calls)
 
     def test_a_crash_while_driving_stops_the_camera_and_goes_red(self):
         class Breaks(ScriptedController):
@@ -131,8 +130,9 @@ class SessionTest(unittest.TestCase):
 
         self.controllers = [Breaks(moving(x=1), moving(x=1))]
         logs = self.run_session()
-        self.assertEqual(self.report.calls[-1],
-                         ("stopped", "Unexpected error in ptz_joystick. See the log for details, then click Restart."))
+        name, problem = self.report.calls[-1]
+        self.assertEqual((name, problem.what, problem.detail),
+                         ("stopped", "Unexpected error in ptz_joystick", "RuntimeError('boom')"))
         self.assertTrue(any(line.startswith("CRITICAL") and "boom" in line for line in logs.output))
         self.assertEqual({type(c): c for c in self.camera.calls}, STOPS)
 
@@ -140,7 +140,7 @@ class SessionTest(unittest.TestCase):
         self.camera.answers = [True, False]             # takes the startup stop, refuses the first move
         self.controllers = [SetsStop(self.stop, *[moving(x=1)] * 20)]
         self.run_session()
-        self.assertIn(("camera", False, "camera unreachable: timed out"), self.report.calls)
+        self.assertIn(("camera", False, FlakyCamera.WHY), self.report.calls)
 
     def test_stop_while_waiting_for_the_camera_ends_the_session_at_once(self):
         self.camera.then = False
