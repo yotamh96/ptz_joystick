@@ -146,7 +146,7 @@ Text shown as `text()`; `then` is added as described above.
 | Camera answered an error | `camera answered <code> to <cmd>` | `The camera refused a command` | `Check that its web page opens in a browser` | `HTTP <code> to <cmd>` |
 | Startup camera check, adapter gave no reason | `Camera at <host> did not accept a stop command (reason logged above). Check host in <path>, the network, and PTZ_PASSWORD.` | `The camera at <host> didn't answer` | `Check host in ptz_joystick.toml, the network, and PTZ_PASSWORD` | |
 | No controller | `No controller found. Check that it shows in joy.cpl.` | `No controller found` | `Plug it in and check that it shows in joy.cpl` | |
-| Already running | `ptz_joystick is already running. Quit it first: tray icon or its console window.` | `Another ptz_joystick is already running` | `Quit it first: the tray icon or its console window` | |
+| Already running | `ptz_joystick is already running. Quit it first: tray icon or its console window.` | `Another ptz_joystick is already running` | `Quit it first: its tray icon or console window` | |
 | Crash | `Crashed: RuntimeError('boom'). See the log.` | `Unexpected error in ptz_joystick` | `See the log for details` | `repr(e)` |
 | Controller unplugged (log, status, pop-up) | `Controller lost, camera stopped. Waiting for it...` / `Controller unplugged: plug it back in` / `Controller unplugged. Camera stopped. Plug it back in.` | `The controller is unplugged and the camera stopped` | `Plug it back in` | |
 
