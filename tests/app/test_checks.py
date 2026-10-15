@@ -2,7 +2,7 @@ import unittest
 from pathlib import Path
 from typing import Any
 
-from ptz_joystick.app.checks import check_axes, check_camera, check_types
+from ptz_joystick.app.checks import check_axes, check_camera, check_types, type_error
 from ptz_joystick.app.registry import CAMERAS
 from ptz_joystick.config import Settings
 from ptz_joystick.controllers import ControllerState
@@ -60,6 +60,13 @@ class CheckTypesTest(unittest.TestCase):
         for name, top in tops.items():
             with self.subTest(name=name), self.assertRaisesRegex(Problem, f"{name} can be at most {top}"):
                 check_types(Settings(**{**tops, name: top + 1}), self.PATH)
+
+
+class TypeErrorTest(unittest.TestCase):
+    def test_says_what_is_wrong_without_a_file_name(self):
+        self.assertIsNone(type_error(Settings()))
+        self.assertEqual(type_error(Settings(camera="sony")), "camera must be one of ptzoptics, got 'sony'")
+        self.assertEqual(type_error(Settings(tilt_max=21)), "tilt_max can be at most 20 for camera 'ptzoptics', got 21")
 
 
 class CheckAxesTest(unittest.TestCase):

@@ -10,15 +10,22 @@ from ..core.problem import Problem
 from .registry import CAMERAS, CONTROLLERS
 
 
-def check_types(s: Settings, settings_path: Path):
-    """camera and controller name known types, and the speeds fit that camera. Before anything connects."""
+def type_error(s: Settings) -> str | None:
+    """What's wrong with camera, controller or the speeds for that camera, or None. No file name: the settings
+    dialog shows it under the field; check_types adds the file."""
     for name, table in (("camera", CAMERAS), ("controller", CONTROLLERS)):
         if getattr(s, name) not in table:
-            raise bad_setting(settings_path, f"{name} must be one of {', '.join(table)}, got {getattr(s, name)!r}")
+            return f"{name} must be one of {', '.join(table)}, got {getattr(s, name)!r}"
     for name, top in CAMERAS[s.camera].top_speeds.items():
         if getattr(s, name) > top:
-            raise bad_setting(settings_path, f"{name} can be at most {top} for camera {s.camera!r}, "
-                                             f"got {getattr(s, name)}")
+            return f"{name} can be at most {top} for camera {s.camera!r}, got {getattr(s, name)}"
+    return None
+
+
+def check_types(s: Settings, settings_path: Path):
+    """camera and controller name known types, and the speeds fit that camera. Before anything connects."""
+    if message := type_error(s):
+        raise bad_setting(settings_path, message)
 
 
 def check_camera(camera: Camera, host: str, settings_path: Path):
