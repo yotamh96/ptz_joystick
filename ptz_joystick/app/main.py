@@ -3,12 +3,13 @@ Reads the settings, runs the startup checks, then hands over to the loop. --tray
 A Problem or a crash ends here, in both modes: logged, shown where the operator looks, exit 1."""
 import argparse
 import logging
+import sys
 from pathlib import Path
 
 from .. import config
 from ..core.problem import Problem, crashed
 from ..core.sender import CommandSender
-from ..windows import single_instance
+from ..windows import elevation, single_instance
 from ..windows.console import on_console_close, owns_console
 from ..windows.message_box import message_box
 from . import updates
@@ -31,7 +32,13 @@ def main(argv=None):
     parser.add_argument("--version", action="version", version=VERSION)
     parser.add_argument("--keyboard", action="store_true", help="same as controller = \"keyboard\" in the settings file")
     parser.add_argument("--tray", action="store_true", help="run as an icon in the notification area, not in a console")
+    parser.add_argument("--elevated", action="store_true", help=argparse.SUPPRESS)  # set by the relaunch below
     args = parser.parse_args(argv)
+    # Zao Virtual Cabin runs as admin; keys typed into it only reach an admin. Before claim(), or the new copy would
+    # find this one still running. A "No" on the UAC prompt runs on without admin (the keyboard controller warns).
+    if args.tray and not args.elevated and not elevation.is_admin() and \
+            elevation.relaunch_as_admin([*(sys.argv[1:] if argv is None else argv), "--elevated"]):
+        return
     setup_logging(config.Settings(log_file=str(bootstrap_log(args.config))))     # until the settings are read
     try:
         if not single_instance.claim():

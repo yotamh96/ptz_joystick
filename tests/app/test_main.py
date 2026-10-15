@@ -7,9 +7,11 @@ from ptz_joystick.core.problem import Problem
 
 
 class MainTest(unittest.TestCase):
-    """Shared setUp: no real log file, no real mutex, no message box, no waiting on the keyboard."""
+    """Shared setUp: no real log file, no real mutex, no message box, no waiting on the keyboard. Already admin unless
+    a test says otherwise, so no test pops up a real UAC prompt."""
 
     def setUp(self):
+        self.is_admin = self.enterContext(mock.patch.object(app_main.elevation, "is_admin", return_value=True))
         self.setup_logging = self.enterContext(mock.patch.object(app_main, "setup_logging"))
         self.claim = self.enterContext(mock.patch.object(app_main.single_instance, "claim", return_value=True))
         self.box = self.enterContext(mock.patch.object(app_main, "message_box"))
@@ -93,6 +95,40 @@ class TrayFlagTest(MainTest):
             app_main.main(["--tray", "--config", r"C:\tools\ptz_joystick.toml"])
         [settings] = self.setup_logging.call_args.args
         self.assertEqual(settings.log_file, r"C:\tools\ptz_joystick.log")
+
+
+
+class TrayAsAdminTest(MainTest):
+    """Zao Virtual Cabin runs as admin, and Windows hides keys typed into it from a program that isn't."""
+
+    def main(self, argv, relaunched=True):
+        """main(argv) as a non-admin; relaunched: what the UAC prompt answers. Returns (relaunch mock, run_tray mock)."""
+        self.is_admin.return_value = False
+        with mock.patch.object(app_main.elevation, "relaunch_as_admin", return_value=relaunched) as relaunch,                 mock.patch.object(app_main, "run_tray") as run_tray:
+            app_main.main(argv)
+        return relaunch, run_tray
+
+    def test_restarts_as_admin_and_leaves_the_instance_to_it(self):
+        relaunch, run_tray = self.main(["--tray", "--config", "x.toml"])
+        relaunch.assert_called_once_with(["--tray", "--config", "x.toml", "--elevated"])
+        run_tray.assert_not_called()
+        self.claim.assert_not_called()          # or the new copy would find this one still running
+
+    def test_no_on_the_uac_prompt_runs_without_admin(self):
+        _, run_tray = self.main(["--tray"], relaunched=False)
+        run_tray.assert_called_once()
+
+    def test_a_relaunched_copy_never_relaunches_again(self):
+        """UAC off and not an admin: "runas" gives no admin rights, and must not loop."""
+        relaunch, run_tray = self.main(["--tray", "--elevated"])
+        relaunch.assert_not_called()
+        run_tray.assert_called_once()
+
+    def test_already_admin_just_runs(self):
+        with mock.patch.object(app_main.elevation, "relaunch_as_admin") as relaunch,                 mock.patch.object(app_main, "run_tray") as run_tray:
+            app_main.main(["--tray"])
+        relaunch.assert_not_called()
+        run_tray.assert_called_once()
 
 
 if __name__ == "__main__":
