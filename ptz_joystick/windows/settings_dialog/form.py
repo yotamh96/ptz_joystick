@@ -97,12 +97,15 @@ def _row(cmd) -> tuple[str, str]:
 
 
 def _typed(setting: str, value: Any) -> Any:
-    """An entry's text as its setting's number type. Text that isn't one stays text, so from_dict says so in its own
-    words ("deadzone must be a number, got '0,15'")."""
-    want = TYPES[setting]
-    if want in (int, float) and isinstance(value, str):
+    """An entry's text without spaces around it (a pasted address often has one), as its setting's number type.
+    Text that isn't a number stays text, so from_dict says so in its own words ("deadzone must be a number, got
+    '0,15'"). The password never comes here: it's kept as typed."""
+    if not isinstance(value, str):
+        return value
+    want, value = TYPES[setting], value.strip()
+    if want in (int, float):
         try:
-            return want(value.strip())
+            return want(value)
         except ValueError:
             pass
     return value

@@ -1,7 +1,9 @@
 import gc
 import tempfile
 import time
+import tkinter as tk
 import unittest
+import weakref
 from pathlib import Path
 from unittest import mock
 
@@ -50,6 +52,30 @@ class OpenDialogTest(unittest.TestCase):
         handle.close()
         self.assertFalse(handle.alive)
         gc.collect()                            # nothing of Tk left for this thread to free: Tcl would abort
+
+    def test_a_closed_dialog_frees_its_tcl_interpreter(self):
+        roots: list[weakref.ref] = []
+
+        class Recorded(tk.Tk):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                roots.append(weakref.ref(self))
+
+        with mock.patch.object(settings_dialog.tk, "Tk", Recorded):
+            handle, thread = self.open()
+            deadline = time.monotonic() + 5
+            while not handle.hwnd and time.monotonic() < deadline:
+                time.sleep(0.05)
+            handle.close()
+        self.assertFalse(thread.is_alive())
+        self.assertIsNone(roots[0](), "the dialog's thread left its Tcl interpreter alive: ~2 MB per open")
+
+    def test_when_tk_cant_start_settings_opens_in_notepad(self):
+        broken = mock.Mock(side_effect=tk.TclError("Can't find a usable init.tcl"))
+        with mock.patch.object(settings_dialog.tk, "Tk", broken), mock.patch.object(settings_dialog.log, "exception"):
+            _, thread = self.open()
+            thread.join(5)
+        self.assertEqual(self.notepads, [True])
 
 
 if __name__ == "__main__":

@@ -121,5 +121,8 @@ def _number_box_follows(action: tk.StringVar, entry: ttk.Entry):
     def sync(*_):
         entry.state(["!disabled"] if numbered(action.get()) else ["disabled"])
 
-    action.trace_add("write", sync)
+    name = action.trace_add("write", sync)
+    # A trace's Tcl command holds the variable, the entry and so the whole interpreter: root.destroy() doesn't
+    # remove it, so without this every open would keep its interpreter (~2 MB) for good.
+    entry.bind("<Destroy>", lambda _: action.trace_remove("write", name))
     sync()

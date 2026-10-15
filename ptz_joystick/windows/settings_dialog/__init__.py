@@ -90,5 +90,6 @@ def _run(handle: Handle, path: Path, cameras, controllers, type_error, on_restar
         root.mainloop()
         del window, root
         gc.collect()            # free every Tk object on this thread: freed on another, Tcl aborts the process
-    except Exception:
-        log.exception("Settings dialog failed")
+    except Exception:           # Tk can't run here (a broken build?): the file in Notepad, as before the dialog
+        log.exception("Settings dialog failed, opening the settings file in Notepad instead")
+        on_notepad()

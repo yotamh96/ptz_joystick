@@ -38,6 +38,10 @@ class FieldsTest(unittest.TestCase):
     def test_spaces_around_a_number_are_fine(self):
         self.assertEqual(save(pan_max=" 12 ", deadzone="0.2 ").pan_max, 12)
 
+    def test_spaces_around_a_pasted_address_are_dropped_but_the_password_is_as_typed(self):
+        s = save(host=" http://10.0.0.9 ", user="admin ", password=" p w ")
+        self.assertEqual((s.host, s.user, s.password), ("http://10.0.0.9", "admin", " p w "))
+
     def test_only_preset_takes_a_number(self):
         self.assertEqual([a for a in form.ACTIONS if form.numbered(a)], ["preset"])
 
