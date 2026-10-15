@@ -1,18 +1,12 @@
-"""Is this program's window the one in front? For controllers/keyboard.py, so keys typed into other windows don't
-move the camera. Windows only.
-
-"This program's window" depends on where it runs: the classic console window, the Windows Terminal window that
-owns it, or (VS Code, which hides the console) a window of one of our parent processes.
-"""
+"""Is a given program's window the one in front? For controllers/keyboard.py, so keys typed into other windows don't
+move the camera. Windows only."""
 import ctypes
-import os
 from ctypes import wintypes
 
-GA_ROOTOWNER, TH32CS_SNAPPROCESS = 3, 2
+TH32CS_SNAPPROCESS = 2
 
 user32, kernel32 = ctypes.WinDLL("user32"), ctypes.WinDLL("kernel32")     # own copies: we set prototypes below
-user32.GetForegroundWindow.restype = kernel32.GetConsoleWindow.restype = wintypes.HWND
-user32.GetAncestor.restype, user32.GetAncestor.argtypes = wintypes.HWND, [wintypes.HWND, wintypes.UINT]
+user32.GetForegroundWindow.restype = wintypes.HWND
 user32.GetWindowThreadProcessId.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.DWORD)]
 kernel32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
 
@@ -32,12 +26,6 @@ def _foreground() -> tuple[int | None, int]:
     return hwnd, pid.value
 
 
-def _console_windows() -> set[int]:
-    """The classic console window, plus its owner: Windows Terminal hides the console behind its own window."""
-    console = kernel32.GetConsoleWindow()
-    return {h for h in (console, console and user32.GetAncestor(console, GA_ROOTOWNER)) if h}
-
-
 def _processes() -> dict[int, tuple[int, str]]:
     """Every running process: pid -> (parent pid, exe name)."""
     snap = kernel32.CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0)
@@ -51,22 +39,18 @@ def _processes() -> dict[int, tuple[int, str]]:
     return procs
 
 
-def _ancestor_pids() -> set[int]:
-    """This process and its parents, up to but not including explorer.exe. A terminal that hides the console
-    window (VS Code) is one of them. explorer.exe is left out, or File Explorer in front would count."""
-    procs, pids, pid = _processes(), set(), os.getpid()
-    while pid in procs and pid not in pids and procs[pid][1].lower() != "explorer.exe":
-        pids.add(pid)
-        pid = procs[pid][0]
-    return pids
+class AppInFront:
+    """True while a window of the program named exe_name (e.g. "Zao Virtual Cabin.exe") is in front. Takes a process
+    snapshot only when the foreground window's process changes, so in_front() is cheap enough for every read."""
 
-
-class OwnWindow:
-    """Looks up our windows and processes once; in_front() is then cheap enough for every read."""
-
-    def __init__(self):
-        self._windows, self._pids = _console_windows(), _ancestor_pids()
+    def __init__(self, exe_name: str):
+        self._exe = exe_name.lower()
+        self._pid: int | None = None
+        self._match = False
 
     def in_front(self) -> bool:
-        hwnd, pid = _foreground()
-        return hwnd in self._windows or pid in self._pids
+        _, pid = _foreground()
+        if pid != self._pid:
+            self._pid = pid
+            self._match = _processes().get(pid, (0, ""))[1].lower() == self._exe
+        return self._match

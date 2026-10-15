@@ -63,7 +63,8 @@ ptz_joystick/          the package
   controllers/         Controller port (__init__.py) + winmm.py and keyboard.py adapters
   windows/             Windows plumbing that is neither program flow nor an adapter
     console.py         console close / logoff / shutdown → stop the camera
-    focus.py           "is our window in front?" for controllers/keyboard.py
+    elevation.py       "are we admin?" and the tray's restart as admin (Zao runs as admin; its keys only reach admins)
+    focus.py           "is Zao Virtual Cabin in front?" for controllers/keyboard.py
     single_instance.py "already running?": a named mutex both exes share
     autostart.py       Start with Windows: the HKCU Run key
     user_env.py        PTZ_PASSWORD as setx left it (HKCU\Environment)

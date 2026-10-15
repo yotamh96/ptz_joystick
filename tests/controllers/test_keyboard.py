@@ -10,9 +10,9 @@ from tests import contracts
 
 
 def read(*keys, settings=None, in_front=True):
-    """One read() with these virtual-key codes held, and our window in front or not (see tests/windows/test_focus.py)."""
-    with mock.patch.object(keyboard, "OwnWindow") as own_window:
-        own_window.return_value.in_front.return_value = in_front
+    """One read() with these virtual-key codes held, and Zao in front or not (see tests/windows/test_focus.py)."""
+    with mock.patch.object(keyboard, "AppInFront") as app:
+        app.return_value.in_front.return_value = in_front
         c = keyboard.KeyboardController(settings or Settings())
     with mock.patch.object(keyboard, "_held", side_effect=lambda vk: vk in keys):
         return c.read()
@@ -47,10 +47,25 @@ class KeyboardControllerTest(contracts.ControllerContract):
         state = read(VK_RIGHT, settings=Settings(pan_axis="U", tilt_axis="V", zoom_axis="Z"))
         self.assertEqual(state.axes, {"U": 1.0, "V": 0.0, "Z": 0.0})
 
-    def test_another_window_in_front_reads_centred_and_released(self):
+    def test_another_app_in_front_reads_centred_and_released(self):
         state = read(VK_RIGHT, ord("1"), in_front=False)
         self.assertEqual(state.axes, {"X": 0.0, "Y": 0.0, "R": 0.0})
         self.assertEqual(state.buttons, 0)
+
+
+class StartTest(unittest.TestCase):
+    def start(self, admin):
+        with mock.patch.object(keyboard, "is_admin", return_value=admin), mock.patch.object(keyboard, "AppInFront"):
+            keyboard.start(Settings())
+
+    def test_warns_when_not_admin_as_zao_keys_are_hidden(self):
+        with self.assertLogs("ptz_joystick.controllers.keyboard", "WARNING") as logs:
+            self.start(admin=False)
+        self.assertIn(keyboard.NOT_ADMIN, logs.output[-1])
+
+    def test_no_warning_as_admin(self):
+        with self.assertNoLogs("ptz_joystick.controllers.keyboard", "WARNING"):
+            self.start(admin=True)
 
 
 if __name__ == "__main__":

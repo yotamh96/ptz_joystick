@@ -20,7 +20,6 @@ from .version import VERSION
 
 log = logging.getLogger(__name__)
 
-KEYBOARD_IN_TRAY = "The keyboard controller only works in the console version (ptz_joystick.exe)."
 STICK_PROMPT_AFTER = 1.0    # s. A missing controller raises at once, so it never gets a wrong "move the stick" pop-up
 
 
@@ -96,8 +95,6 @@ def _session(path: Path, keyboard: bool, stop: threading.Event, report: Report, 
     report.log_to(s.log_file)
     if check_updates and s.check_updates:
         updates.check_in_background(VERSION, on_found=report.update)
-    if s.controller == "keyboard":
-        raise SystemExit(KEYBOARD_IN_TRAY)
     camera = CAMERAS[s.camera].connect(s)
     while not camera.send(PanTilt(0, 0)):           # the startup check, retried: the camera may boot after the PC
         report.waiting_for_camera(s.host, camera_warning.text)

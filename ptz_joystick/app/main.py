@@ -2,11 +2,12 @@
 Reads the settings, runs the startup checks, then hands over to the loop. --tray hands over to tray.py instead."""
 import argparse
 import logging
+import sys
 from pathlib import Path
 
 from .. import config
 from ..core.sender import CommandSender
-from ..windows import single_instance
+from ..windows import elevation, single_instance
 from ..windows.console import on_console_close
 from ..windows.message_box import message_box
 from . import updates
@@ -28,7 +29,13 @@ def main(argv=None):
     parser.add_argument("--version", action="version", version=VERSION)
     parser.add_argument("--keyboard", action="store_true", help="same as controller = \"keyboard\" in the settings file")
     parser.add_argument("--tray", action="store_true", help="run as an icon in the notification area, not in a console")
+    parser.add_argument("--elevated", action="store_true", help=argparse.SUPPRESS)  # set by the relaunch below
     args = parser.parse_args(argv)
+    # Zao Virtual Cabin runs as admin; keys typed into it only reach an admin. Before claim(), or the new copy would
+    # find this one still running. A "No" on the UAC prompt runs on without admin (the keyboard controller warns).
+    if args.tray and not args.elevated and not elevation.is_admin() and \
+            elevation.relaunch_as_admin([*(sys.argv[1:] if argv is None else argv), "--elevated"]):
+        return
     if not single_instance.claim():
         if args.tray:                       # no console to show the message
             message_box(ALREADY_RUNNING)

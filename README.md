@@ -66,7 +66,7 @@ or run `ptz_joystick.exe` from a terminal.
 
 Only one copy runs at a time, tray or console: quit the tray before starting the console version.
 
-**No controller at hand?** `python -m ptz_joystick --keyboard` (same flag for the exe, or `controller = "keyboard"` in the settings) skips step 2 and drives with the keyboard: arrows = left stick, **W / S** = zoom in / out, keys **1–4** = buttons 1–4 (tap = go to preset, hold 2 s = save it). Each key is a full push, so moves run at top speed; lower `pan_max` / `tilt_max` / `zoom_max` for gentler moves. Keys only count while the tool's window (console, Windows Terminal or VS Code) is in front. Click another window and the camera stops. Console version only: the tray has no window to type into.
+**No controller at hand?** `python -m ptz_joystick --keyboard` (same flag for the exe, or `controller = "keyboard"` in the settings) skips step 2 and drives with the keyboard: arrows = left stick, **W / S** = zoom in / out, keys **1–4** = buttons 1–4 (tap = go to preset, hold 2 s = save it). Each key is a full push, so moves run at top speed; lower `pan_max` / `tilt_max` / `zoom_max` for gentler moves. Keys only count while **Zao Virtual Cabin** is in front. Click another window and the camera stops. Zao runs as administrator, and Windows hides the keys typed into it from programs that aren't, so ptz_joystick must run as administrator too: the tray restarts itself as admin at every start, including sign-in (a UAC prompt, unless the PC's policy lets admins elevate without one); for the console version, open the terminal with **Run as administrator**.
 
 ## Controls
 

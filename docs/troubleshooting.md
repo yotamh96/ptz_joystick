@@ -30,7 +30,8 @@ To see what happened during a session, check the file afterwards. Set `debug = t
 | Tray dot yellow, `Waiting for camera at ...` | The text after the colon is the camera's last answer: see `camera rejected the login (401)` and `camera unreachable` below. It tries again every 5 s |
 | Tray dot yellow, `Move the left stick to start` | Move the stick fully, as for `Move the left stick now...` below |
 | `ptz_joystick is already running` | Another copy runs: a tray dot (look behind **^**) or a console window. Quit it first |
-| `The keyboard controller only works in the console version` | Run `ptz_joystick.exe --keyboard` instead, or set `controller = "winmm"` |
+| Keyboard controller: keys do nothing | Keys only count while Zao Virtual Cabin is in front. Click its window first |
+| `Not running as administrator` | Zao runs as admin, so its keys only reach an admin. Tray: start it again and answer **Yes** to the UAC prompt. Console: open the terminal with **Run as administrator** |
 | `Set the camera password first` | Run `setx PTZ_PASSWORD "..."`, then **open a new terminal** (console) or click **Restart** (tray) |
 | `No controller found` | Open `joy.cpl` (Win+R). If the controller isn't listed or its crosshair doesn't move there, it's a cable, receiver or driver problem, not this tool |
 | Stuck at `Move the left stick now...` | Move the stick fully. The tool picks the first controller whose stick moves more than 0.3 |

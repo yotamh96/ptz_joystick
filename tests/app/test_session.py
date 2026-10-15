@@ -122,11 +122,6 @@ class SessionTest(unittest.TestCase):
         self.assertIn("driving", self.names())
         self.assertEqual(os.environ["PTZ_PASSWORD"], "from-setx")
 
-    def test_keyboard_is_red_in_the_tray(self):
-        self.run_session(keyboard=True)
-        self.assertEqual(self.report.calls[-1], ("stopped", session.KEYBOARD_IN_TRAY))
-        self.assertEqual(self.camera.calls, [])
-
     def test_no_controller_waits_and_tries_again(self):
         self.controllers.insert(0, SystemExit(NO_PAD))
         self.run_session()
