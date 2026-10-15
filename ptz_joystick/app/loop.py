@@ -7,9 +7,13 @@ from ..config import Settings
 from ..controllers import Controller
 from ..core.commands import PanTilt, SavePreset, Tracking, Zoom
 from ..core.mapping import Mapper
+from ..core.problem import Problem
 from ..core.sender import CommandSender
 
 log = logging.getLogger(__name__)
+
+# The same words in the log, the tray's status text and its pop-up (app/status.py).
+CONTROLLER_UNPLUGGED = Problem("The controller is unplugged and the camera stopped", fix="Plug it back in")
 
 
 def run(s: Settings, controller: Controller, sender: CommandSender, period=0.05,
@@ -25,9 +29,9 @@ def run(s: Settings, controller: Controller, sender: CommandSender, period=0.05,
             if (state is None) != lost:
                 lost = state is None
                 if lost:
-                    log.warning("Controller lost, camera stopped. Waiting for it...")
+                    log.warning(CONTROLLER_UNPLUGGED.log_line())
                 else:
-                    log.info("Controller back.")
+                    log.info("The controller is back")
                 if on_controller:
                     on_controller(not lost)
             if s.debug and state:
@@ -47,4 +51,4 @@ def stop_camera(sender: CommandSender):
     if sender.drain_with([PanTilt(0, 0), Zoom(0)]):
         log.info("Camera stopped.")
     else:
-        log.error("Camera did not confirm stop.")
+        log.error(Problem("The camera didn't confirm the stop", fix="Check that it stopped moving").log_line())

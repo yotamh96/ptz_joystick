@@ -3,6 +3,7 @@ from unittest import mock
 
 from ptz_joystick.controllers import ControllerState, winmm
 from ptz_joystick.controllers.winmm import JOYCAPSW, JOYINFOEX, WinmmController
+from ptz_joystick.core.problem import Problem
 from tests import contracts
 
 
@@ -60,6 +61,14 @@ class WinmmControllerTest(contracts.ControllerContract):
     def test_device_without_caps_is_rejected(self):
         with mock.patch.object(winmm, "_caps", return_value=None), self.assertRaises(OSError):
             WinmmController(3)
+
+
+
+class DiscoverTest(unittest.TestCase):
+    def test_no_device_says_what_to_check(self):
+        with mock.patch.object(winmm, "_pos", return_value=None), self.assertRaises(Problem) as cm:
+            winmm.discover()
+        self.assertEqual(cm.exception.text(), "No controller found. Plug it in and check that it shows in joy.cpl.")
 
 
 if __name__ == "__main__":

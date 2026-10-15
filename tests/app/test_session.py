@@ -1,4 +1,3 @@
-import logging
 import os
 import tempfile
 import threading
@@ -9,10 +8,11 @@ from typing import Any
 from unittest import mock
 
 from ptz_joystick import config
-from ptz_joystick.app import session
+from ptz_joystick.app import session, startup
 from ptz_joystick.app.registry import CAMERAS, CONTROLLERS, CameraType
 from ptz_joystick.cameras import ptzoptics
 from ptz_joystick.core.commands import PanTilt, Zoom
+from ptz_joystick.core.problem import Problem
 from tests.fakes import (
     RecordingCamera,
     ScriptedController,
@@ -22,12 +22,13 @@ from tests.fakes import (
 )
 
 HOST = config.Settings().host
-NO_PAD = "No controller found. Check that it shows in joy.cpl."
+NO_PAD = Problem("No controller found", fix="Plug it in and check that it shows in joy.cpl")
 STOPS = {PanTilt: PanTilt(0, 0), Zoom: Zoom(0)}
 
 
 class FlakyCamera(RecordingCamera):
-    """Answers from a script (True = took it), then `then`. Logs why it refused, like a real adapter."""
+    """Answers from a script (True = took it), then `then`. Says why it refused, like a real adapter."""
+    WHY = Problem("Can't reach the camera", detail="timed out")
 
     def __init__(self, *answers, then=True):
         super().__init__()
@@ -36,8 +37,7 @@ class FlakyCamera(RecordingCamera):
     def send(self, cmd):
         super().send(cmd)
         ok = self.answers.pop(0) if self.answers else self.then
-        if not ok:
-            logging.getLogger("ptz_joystick.cameras.fake").warning("camera unreachable: timed out")
+        self.problem = None if ok else self.WHY
         return ok
 
 
@@ -48,7 +48,7 @@ def _recorder(name):
 
 
 class RecordingReport:
-    """A session's report, as tuples: ("driving", host), ("camera", ok, why), ..."""
+    """A session's report, as tuples: ("driving", host), ("camera", ok, problem), ..."""
 
     def __init__(self):
         self.calls: list[tuple] = []
@@ -78,7 +78,7 @@ class SessionTest(unittest.TestCase):
         self.path = Path(self.enterContext(tempfile.TemporaryDirectory())) / config.FILE_NAME
         self.addCleanup(reset_logging)          # before the folder is deleted: cleanups go last-in, first-out
         self.enterContext(mock.patch.dict(os.environ, {"PTZ_PASSWORD": "pw"}))
-        self.enterContext(mock.patch.object(session, "user_env", return_value=None))   # never the real registry
+        self.enterContext(mock.patch.object(startup, "user_env", return_value=None))   # never the real registry
         self.report, self.stop, self.camera = RecordingReport(), threading.Event(), FlakyCamera()
         self.enterContext(mock.patch.dict(CAMERAS, {"ptzoptics": CameraType(lambda s: self.camera,
                                                                             ptzoptics.TOP_SPEEDS)}))
@@ -105,25 +105,18 @@ class SessionTest(unittest.TestCase):
         self.run_session()
         self.assertEqual(self.names(), ["log_to", "waiting_for_camera", "waiting_for_camera", "waiting_for_stick",
                                         "driving"])
-        self.assertIn(("waiting_for_camera", HOST, "camera unreachable: timed out"), self.report.calls)
+        self.assertIn(("waiting_for_camera", HOST, FlakyCamera.WHY), self.report.calls)
         self.assertEqual({type(c): c for c in self.camera.calls}, STOPS)
 
     def test_missing_password_is_red_with_the_fix(self):
         del os.environ["PTZ_PASSWORD"]
-        self.run_session()
-        [(name, message)] = self.report.calls
-        self.assertEqual(name, "stopped")
-        self.assertIn("Set the camera password first", message)
-
-    def test_a_password_set_with_setx_after_start_is_used(self):
-        del os.environ["PTZ_PASSWORD"]
-        with mock.patch.object(session, "user_env", return_value="from-setx"):
-            self.run_session()
-        self.assertIn("driving", self.names())
-        self.assertEqual(os.environ["PTZ_PASSWORD"], "from-setx")
+        logs = self.run_session()
+        [(name, problem)] = self.report.calls
+        self.assertEqual((name, problem.what), ("stopped", "The camera password is not set"))
+        self.assertTrue(any(line.startswith("ERROR") and "then click Restart" in line for line in logs.output))
 
     def test_no_controller_waits_and_tries_again(self):
-        self.controllers.insert(0, SystemExit(NO_PAD))
+        self.controllers.insert(0, NO_PAD)
         self.run_session()
         self.assertEqual(self.names(), ["log_to", "waiting_for_stick", "no_controller", "waiting_for_stick", "driving"])
         self.assertIn(("no_controller", NO_PAD), self.report.calls)
@@ -137,7 +130,9 @@ class SessionTest(unittest.TestCase):
 
         self.controllers = [Breaks(moving(x=1), moving(x=1))]
         logs = self.run_session()
-        self.assertEqual(self.report.calls[-1], ("stopped", "Crashed: RuntimeError('boom'). See the log."))
+        name, problem = self.report.calls[-1]
+        self.assertEqual((name, problem.what, problem.detail),
+                         ("stopped", "Unexpected error in ptz_joystick", "RuntimeError('boom')"))
         self.assertTrue(any(line.startswith("CRITICAL") and "boom" in line for line in logs.output))
         self.assertEqual({type(c): c for c in self.camera.calls}, STOPS)
 
@@ -145,7 +140,7 @@ class SessionTest(unittest.TestCase):
         self.camera.answers = [True, False]             # takes the startup stop, refuses the first move
         self.controllers = [SetsStop(self.stop, *[moving(x=1)] * 20)]
         self.run_session()
-        self.assertIn(("camera", False, "camera unreachable: timed out"), self.report.calls)
+        self.assertIn(("camera", False, FlakyCamera.WHY), self.report.calls)
 
     def test_stop_while_waiting_for_the_camera_ends_the_session_at_once(self):
         self.camera.then = False

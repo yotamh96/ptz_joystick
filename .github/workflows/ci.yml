@@ -74,10 +74,11 @@ jobs:
           }
 
       - name: Smoke test
+        timeout-minutes: 5               # a wrong "Press Enter to close." wait would hang the job
         run: |
           # No PTZ_PASSWORD on the runner: the exe must get through every import and stop at the password check.
           $out = & dist\ptz_joystick.exe 2>&1 | Out-String
-          if ($LASTEXITCODE -ne 1 -or $out -notmatch "Set the camera password first") {
+          if ($LASTEXITCODE -ne 1 -or $out -notmatch "The camera password is not set") {
             throw "unexpected exit $LASTEXITCODE`n$out"
           }
           # The settings template is written before the password check. cwd isn't dist\, so this proves it lands next to the exe.
@@ -97,10 +98,10 @@ jobs:
           foreach ($i in 1..30) {
             Start-Sleep 1
             $log = Get-Content dist\ptz_joystick.log -Raw -ErrorAction SilentlyContinue
-            if ($log -match "Set the camera password first") { break }
+            if ($log -match "The camera password is not set") { break }
           }
           Get-Process ptz_joystick_tray -ErrorAction SilentlyContinue | Stop-Process -Force   # a onefile exe is two processes
-          if ($log -notmatch "Set the camera password first") { throw "tray exe did not log the password check:`n$log" }
+          if ($log -notmatch "The camera password is not set") { throw "tray exe did not log the password check:`n$log" }
           $want = if ($env:GITHUB_REF_TYPE -eq "tag") { $env:GITHUB_REF_NAME } else { "dev" }
           if ($log -notmatch "ptz_joystick $([regex]::Escape($want)) \(tray\)") { throw "tray exe logged no '$want (tray)' line:`n$log" }
 

@@ -9,6 +9,7 @@ import ctypes
 import logging
 
 from ..config import Settings
+from ..core.problem import Problem
 from ..windows.elevation import is_admin
 from ..windows.focus import AppInFront
 from . import ControllerState
@@ -20,8 +21,8 @@ VK_LEFT, VK_UP, VK_RIGHT, VK_DOWN = 0x25, 0x26, 0x27, 0x28
 BUTTON_KEYS = "1234"       # a digit's or letter's virtual-key code is its ASCII code
 HELP = ("Keyboard controller: arrows pan/tilt, W/S zoom in/out, 1-4 = presets. "
         "Keys work while Zao Virtual Cabin is in front.")
-NOT_ADMIN = ("Not running as administrator: Zao Virtual Cabin runs as admin, so Windows hides the keys typed into it "
-             "from this program. Run it as administrator.")
+NOT_ADMIN = Problem("Not running as administrator", fix="Run ptz_joystick as administrator",
+                    detail="Zao Virtual Cabin runs as admin, and Windows hides the keys typed into it from other programs")
 
 user32 = ctypes.WinDLL("user32")
 
@@ -50,5 +51,5 @@ class KeyboardController:
 def start(settings: Settings) -> KeyboardController:
     log.info(HELP)
     if not is_admin():
-        log.warning(NOT_ADMIN)
+        log.warning(NOT_ADMIN.log_line())
     return KeyboardController(settings)

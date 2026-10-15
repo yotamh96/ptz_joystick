@@ -1,6 +1,10 @@
 import functools
+import os
+import sys
 import unittest
+from unittest import mock
 
+from ptz_joystick.windows import console
 from ptz_joystick.windows.console import (
     CTRL_CLOSE_EVENT,
     CTRL_LOGOFF_EVENT,
@@ -33,6 +37,30 @@ class HandlerTest(unittest.TestCase):
 
         with self.assertLogs("ptz_joystick.windows.console", "ERROR"):
             self.assertTrue(make_handler(boom)(CTRL_CLOSE_EVENT))
+
+
+class OwnsConsoleTest(unittest.TestCase):
+    def owns(self, pids):
+        with mock.patch.object(console, "_console_pids", return_value=pids):
+            return console.owns_console()
+
+    def test_double_clicked_exe_owns_its_window(self):
+        self.assertTrue(self.owns([os.getpid()]))
+        with mock.patch.object(sys, "frozen", True, create=True):
+            self.assertTrue(self.owns([os.getppid(), os.getpid()]))     # onefile exe: the bootloader is our parent
+
+    def test_python_started_by_a_shell_is_in_a_terminal(self):
+        self.assertFalse(self.owns([os.getppid(), os.getpid()]))        # python -m: our parent is the shell
+
+    def test_a_shell_on_the_console_means_a_terminal(self):
+        shell = max(os.getpid(), os.getppid()) + 1
+        self.assertFalse(self.owns([shell, os.getppid(), os.getpid()]))
+
+    def test_no_console_is_not_ours(self):
+        self.assertFalse(self.owns([]))
+
+    def test_the_real_list_reads(self):
+        self.assertIsInstance(console._console_pids(), list)
 
 
 if __name__ == "__main__":

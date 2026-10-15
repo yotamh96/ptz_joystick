@@ -13,7 +13,7 @@ pip install -r requirements.txt
 setx PTZ_PASSWORD "your-camera-password"
 ```
 
-`setx` only applies to new terminals, so open a new one after running it.
+ptz_joystick reads the new value even in a terminal that was open before `setx`.
 
 **No Python?** Download `ptz_joystick_tray.exe` (and `ptz_joystick.exe`, the console version, for troubleshooting) from the latest GitHub Release into one folder, then run the `setx` line. The first run creates `ptz_joystick.toml` next to the exes. Edit it to change settings ([every setting](docs/settings.md)); no rebuild needed.
 

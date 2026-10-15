@@ -23,8 +23,9 @@ class Controller(Protocol):
         - buttons: bit n = button n held. Bit 0 is "button 1" in joy.cpl.
 
         Each adapter module also has a function that returns a ready controller, like winmm.discover(). It
-        may wait for the user. With no device, it raises SystemExit("<what to check>"). Annotate its return
-        type, so mypy (in CI) can check the controller against this Protocol where CONTROLLERS lists it.
+        may wait for the user. With no device, it raises Problem (core/problem.py): what's missing and what to
+        check. The tray retries it every 5 s. Annotate its return type, so mypy (in CI) can check the controller
+        against this Protocol where CONTROLLERS lists it.
 
         To add a controller: write the adapter, add a line to CONTROLLERS in app/registry.py, and subclass
         tests/contracts.py ControllerContract in its tests.

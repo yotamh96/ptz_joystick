@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from ..core.commands import Command
+from ..core.problem import Problem
 from .settings import BUTTON_COMMANDS, Settings
 
 
@@ -44,13 +45,18 @@ def from_dict(d: dict, password: str) -> Settings:
     values: dict[str, Any] = {"password": password}     # each value checked below, then by Settings itself
     for key, v in d.items():
         if key == "password":
-            raise ValueError('password must not be in the settings file, use:  setx PTZ_PASSWORD "..."')
+            raise ValueError('remove password, set it with setx PTZ_PASSWORD "..." instead')
         if key not in known:
             raise ValueError(f"unknown setting {key!r}")
         if not has_type(v, known[key]):
             raise ValueError(f"{key} must be {TYPE_NAMES[known[key]]}, got {v!r}")
         values[key] = parse_buttons(v) if key == "buttons" else v
     return Settings(**values)
+
+
+def bad_setting(path: Path, message: object) -> Problem:
+    """The one wording for any wrong setting. message: what's wrong with it, e.g. "unknown setting 'hots'"."""
+    return Problem(f"Bad setting in {path.name}: {message}", fix="Fix it and save", detail=str(path))
 
 
 def read_text(path: Path) -> str:
@@ -60,18 +66,19 @@ def read_text(path: Path) -> str:
     try:
         return raw.decode(encoding)
     except UnicodeDecodeError:
-        raise ValueError("can't read it as text. Save it as UTF-8 (Notepad: File > Save as > Encoding)") from None
+        raise Problem(f"Wrong text encoding in {path.name}", fix="In Notepad: File > Save as > Encoding: UTF-8",
+                      detail=str(path)) from None
 
 
 def load(path: Path) -> Settings:
     password = os.environ.get("PTZ_PASSWORD")
     if not password:
-        raise SystemExit('Set the camera password first:  setx PTZ_PASSWORD "..."  then open a new terminal.')
+        raise Problem("The camera password is not set", fix='Run setx PTZ_PASSWORD "..." in a terminal')
     try:
         s = from_dict(tomllib.loads(read_text(path)), password)
         # A relative log file sits next to the settings file (and so the exe), whatever folder you run from.
         return replace(s, log_file=str(path.parent / s.log_file)) if s.log_file else s
     except (tomllib.TOMLDecodeError, ValueError) as e:
-        raise SystemExit(f"{path}: {e}") from None
+        raise bad_setting(path, e) from None
     except OSError as e:
-        raise SystemExit(f"Can't read settings file {path}: {e}") from None
+        raise Problem(f"Can't read {path.name}", fix="Check that you can open it in Notepad", detail=str(e)) from None

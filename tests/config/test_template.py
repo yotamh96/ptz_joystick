@@ -8,6 +8,7 @@ from unittest import mock
 
 from ptz_joystick import config
 from ptz_joystick.config import Settings
+from ptz_joystick.core.problem import Problem
 
 
 class TemplateTest(unittest.TestCase):
@@ -24,6 +25,12 @@ class TemplateTest(unittest.TestCase):
             path.write_text('host = "http://10.0.0.1"', encoding="utf-8")
             self.assertFalse(config.write_template_if_missing(path))
             self.assertEqual(path.read_text(encoding="utf-8"), 'host = "http://10.0.0.1"')
+
+    def test_unwritable_folder_says_where_to_move(self):
+        with tempfile.TemporaryDirectory() as d, self.assertRaises(Problem) as cm:
+            config.write_template_if_missing(Path(d) / "missing" / config.FILE_NAME)
+        self.assertEqual(cm.exception.text(),
+                         f"Can't create {config.FILE_NAME}. Move the exe to a folder you can write to.")
 
 
 class DefaultPathTest(unittest.TestCase):

@@ -59,6 +59,7 @@ ptz_joystick/          the package
     commands.py        PanTilt, Zoom, Preset: camera-agnostic, signed speeds, 0 = stop
     mapping.py         stick → commands (deadzone, scaling, ignores small stick jitter, button presses)
     sender.py          background thread: latest command per type wins, retries until the camera accepts
+    problem.py         Problem: what the operator must fix, in their words; console and tray add the restart step
   cameras/             Camera port (__init__.py) + ptzoptics.py adapter
   controllers/         Controller port (__init__.py) + winmm.py and keyboard.py adapters
   windows/             Windows plumbing that is neither program flow nor an adapter
@@ -71,7 +72,8 @@ ptz_joystick/          the package
     message_box.py     a message box, for errors before the tray icon exists
     tray/              the tray's Windows API: window.py (message loop), icon.py, menu.py, dots.py
 tests/                 mirrors the package: tests/<folder>/test_<module>.py tests ptz_joystick/<folder>/<module>.py
-  test_entry_point.py  __main__.py: crashes go to the log, Ctrl+C stays quiet
+  test_entry_point.py  __main__.py: Ctrl+C stays quiet
+  test_messages.py     every Problem(...) follows docs/extending.md "Writing a message"
   contracts.py         the port rules as tests; every adapter's tests subclass one
   fakes.py             scripted controller and recording camera for the app tests
   windows/scratch_key.py  a throwaway registry key for the registry tests (never the real Run key)
@@ -82,6 +84,6 @@ Paths below are inside `ptz_joystick/` unless they start with `tests/`.
 The two ports are `typing.Protocol` classes, so an adapter only needs the right method; no base class. `mypy` checks that each adapter matches, where `app/registry.py` lists it. The Protocols' docstrings hold the full rules an adapter must follow:
 
 - `Controller.read() -> ControllerState | None` in `controllers/__init__.py` (None = unplugged)
-- `Camera.send(cmd: Command) -> bool` in `cameras/__init__.py` (True = camera took it)
+- `Camera.send(cmd: Command) -> bool` in `cameras/__init__.py` (True = camera took it), and `Camera.problem`: why it didn't
 
 The rules for commands are at the top of `core/commands.py`.

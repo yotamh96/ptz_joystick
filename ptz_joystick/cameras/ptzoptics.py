@@ -5,6 +5,7 @@ import requests
 from requests.auth import HTTPDigestAuth
 
 from ..core.commands import Command, PanTilt, Preset, SavePreset, Tracking, Zoom
+from ..core.problem import Problem
 
 log = logging.getLogger(__name__)
 
@@ -38,30 +39,40 @@ def to_query(cmd: Command) -> str:
 
 class PtzOpticsCamera:
     def __init__(self, host, user, password, timeout=1.0, session=None):
+        self._host = host
         self._url = f"{host}/cgi-bin/"
         self._timeout = timeout
         self._session = session or requests.Session()     # tests pass a fake
         self._session.auth = HTTPDigestAuth(user, password)
         self._failing = None    # kind of the current failure, so an outage logs once, not every retry
+        self.problem: Problem | None = None
 
     def send(self, cmd: Command) -> bool:
         try:
             r = self._session.get(self._url + to_query(cmd), timeout=self._timeout)
         except requests.RequestException as e:
-            return self._failed("unreachable", f"camera unreachable: {e}")
+            return self._failed("unreachable", Problem(f"Can't reach the camera at {self._host}",
+                                                       fix="Check host in ptz_joystick.toml and the network",
+                                                       detail=str(e)))
         if r.status_code == 200:
             if self._failing:
-                log.info("camera back (was: %s)", self._failing)
+                log.info("The camera is answering again (was: %s)", self._failing)
                 self._failing = None
+            self.problem = None
             return True
         if r.status_code == 401:
-            return self._failed(401, "camera rejected the login (401): check user in ptz_joystick.toml and PTZ_PASSWORD")
-        return self._failed(r.status_code, f"camera answered {r.status_code} to {cmd}")
+            return self._failed(401, Problem("The camera refused the login",
+                                             fix="Check user in ptz_joystick.toml and PTZ_PASSWORD",
+                                             detail="HTTP 401"))
+        return self._failed(r.status_code, Problem("The camera refused a command",
+                                                   fix="Check that its web page opens in a browser",
+                                                   detail=f"HTTP {r.status_code} to {cmd}"))
 
-    def _failed(self, kind, msg):
+    def _failed(self, kind, problem: Problem) -> bool:
+        self.problem = problem
         if kind != self._failing:
-            log.warning(msg)
+            log.warning(problem.log_line())
             self._failing = kind
         else:
-            log.debug(msg)
+            log.debug(problem.log_line())
         return False

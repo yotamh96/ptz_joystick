@@ -4,11 +4,13 @@ import unittest
 from dataclasses import dataclass
 
 from ptz_joystick.core.commands import PanTilt, Preset, Zoom
+from ptz_joystick.core.problem import Problem
 from ptz_joystick.core.sender import CommandSender
 
 
 class FakeCamera:
     """Answers like the real one: False = camera said 500 / timed out."""
+    problem: Problem | None = None      # the Camera port's attribute; the sender never reads it
 
     def __init__(self, fail_first=0, delay=0.0):
         self.calls, self.fail_first, self.delay = [], fail_first, delay
@@ -114,6 +116,7 @@ class SenderTest(unittest.TestCase):
             self.assertTrue(wait_idle(s, timeout=1))
         self.assertEqual(cam.calls, [Preset(3)] * 3)
         self.assertIn("Preset(number=3)", logs.output[-1])
+        self.assertIn("The camera didn't take a button command. Press the button again.", logs.output[-1])
 
     def test_refused_moves_keep_retrying_with_backoff(self):
         cam = FakeCamera(fail_first=10**6)

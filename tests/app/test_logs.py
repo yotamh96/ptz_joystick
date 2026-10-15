@@ -30,7 +30,8 @@ class SetupLoggingTest(unittest.TestCase):
                 setup_logging(Settings(log_file=d))
             for h in logging.getLogger().handlers[:]:
                 logging.getLogger().removeHandler(h)
-        self.assertIn("terminal only", logs.output[0])
+        self.assertIn("Can't write the log file. Close any program that has it open, or change log_file.",
+                      logs.output[0])
 
     def test_no_file_when_log_file_empty(self):
         setup_logging(Settings(log_file=""))

@@ -7,6 +7,7 @@ from collections.abc import Callable
 
 from ..cameras import Camera
 from .commands import MOVES, Command
+from .problem import Problem
 
 log = logging.getLogger(__name__)
 
@@ -60,7 +61,8 @@ class CommandSender:
                     self._tries[type(cmd)] = (cmd, tries)
                     if isinstance(cmd, MOVES) or tries < GIVE_UP_AFTER:
                         continue
-                    log.warning("gave up on %s after %d tries", cmd, tries)
+                    log.warning(Problem("The camera didn't take a button command", fix="Press the button again",
+                                        detail=f"gave up on {cmd} after {tries} tries").log_line())
                 self._tries.pop(type(cmd), None)
                 with self._cv:
                     if self._pending.get(type(cmd)) == cmd:

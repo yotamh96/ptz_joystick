@@ -1,7 +1,7 @@
 import threading
 import unittest
 
-from ptz_joystick.app.loop import run
+from ptz_joystick.app.loop import CONTROLLER_UNPLUGGED, run
 from ptz_joystick.config import Settings
 from ptz_joystick.controllers import ControllerState
 from ptz_joystick.core.commands import PanTilt, SavePreset, Zoom
@@ -22,7 +22,7 @@ class RunTest(unittest.TestCase):
         sender = CommandSender(cam)
         with self.assertLogs("ptz_joystick.app.loop", "WARNING") as logs, self.assertRaises(KeyboardInterrupt):
             run(Settings(), ScriptedController(moving(x=1), None, moving(x=1)), sender, period=0.01)
-        self.assertIn("Controller lost", logs.output[0])
+        self.assertIn(CONTROLLER_UNPLUGGED.text(), logs.output[0])       # the same words as the tray's
         self.assertIn(PanTilt(0, 0), cam.calls[cam.calls.index(PanTilt(24, 0)) + 1:])
 
     def test_holding_preset_button_saves_and_says_so(self):

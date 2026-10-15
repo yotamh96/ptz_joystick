@@ -5,7 +5,9 @@ from pathlib import Path
 from unittest import mock
 
 from ptz_joystick import config
+from ptz_joystick.app import startup
 from ptz_joystick.app.startup import prepare
+from ptz_joystick.core.problem import Problem
 from tests.fakes import reset_logging
 
 
@@ -14,6 +16,7 @@ class PrepareTest(unittest.TestCase):
         self.path = Path(self.enterContext(tempfile.TemporaryDirectory())) / config.FILE_NAME
         self.addCleanup(reset_logging)          # runs before the folder is deleted: cleanups go last-in, first-out
         self.enterContext(mock.patch.dict(os.environ, {"PTZ_PASSWORD": "pw"}))
+        self.enterContext(mock.patch.object(startup, "user_env", return_value=None))   # never the real registry
 
     def test_first_run_writes_the_template_and_says_so(self):
         with self.assertLogs("ptz_joystick.app.startup", "INFO") as logs:
@@ -28,13 +31,25 @@ class PrepareTest(unittest.TestCase):
 
     def test_unknown_type_stops_naming_the_setting(self):
         self.path.write_text('controller = "xbox"', encoding="utf-8")
-        with self.assertRaisesRegex(SystemExit, "controller must be one of"):
+        with self.assertRaisesRegex(Problem, "controller must be one of"):
             prepare(self.path, keyboard=False)
 
     def test_missing_password_stops_with_the_fix(self):
         del os.environ["PTZ_PASSWORD"]
-        with self.assertRaisesRegex(SystemExit, "Set the camera password first"):
+        with self.assertRaisesRegex(Problem, "The camera password is not set"):
             prepare(self.path, keyboard=False)
+
+    def test_a_password_set_only_with_setx_is_found(self):
+        del os.environ["PTZ_PASSWORD"]
+        with mock.patch.object(startup, "user_env", return_value="from-setx"), \
+                self.assertLogs("ptz_joystick.app.startup", "INFO"):
+            self.assertEqual(prepare(self.path, keyboard=False).password, "from-setx")
+
+    def test_the_newest_setx_wins_even_in_an_old_terminal(self):
+        os.environ["PTZ_PASSWORD"] = "old"              # what this terminal started with
+        with mock.patch.object(startup, "user_env", return_value="new"), \
+                self.assertLogs("ptz_joystick.app.startup", "INFO"):
+            self.assertEqual(prepare(self.path, keyboard=False).password, "new")
 
 
 if __name__ == "__main__":
