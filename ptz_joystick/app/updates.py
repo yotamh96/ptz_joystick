@@ -2,6 +2,7 @@
 import logging
 import re
 import threading
+from collections.abc import Callable
 
 import requests
 
@@ -33,11 +34,14 @@ def newer_release(current, get=requests.get) -> tuple[str, str] | None:
     return (tag, url) if theirs and theirs > mine else None
 
 
-def check_in_background(current, get=requests.get) -> threading.Thread:
-    """Startup never waits for GitHub: the answer is logged whenever it arrives."""
+def check_in_background(current, get=requests.get,
+                        on_found: Callable[[str, str], None] | None = None) -> threading.Thread:
+    """Startup never waits for GitHub: the answer is logged whenever it arrives, then passed to on_found(tag, url)."""
     def check():
         if found := newer_release(current, get):
             log.info("Update available: %s (you have %s) %s", found[0], current, found[1])
+            if on_found:
+                on_found(*found)
 
     t = threading.Thread(target=check, name="update-check", daemon=True)
     t.start()

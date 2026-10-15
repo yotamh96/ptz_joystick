@@ -6,7 +6,7 @@ CI ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml)) runs on every pus
 
 1. `lint`: `ruff check` and `mypy`
 2. `test`: the unit tests on Python 3.11 and 3.14, on Windows
-3. `build`: PyInstaller → `ptz_joystick.exe`, signed, smoke-tested (it must write `ptz_joystick.toml` next to itself and reach the password check). Download it from the run's **Artifacts**.
+3. `build`: PyInstaller → `ptz_joystick.exe` (console) and `ptz_joystick_tray.exe` (tray, no console window), both signed and smoke-tested. The console exe must write `ptz_joystick.toml` next to itself and reach the password check; the tray exe must log the password check to `ptz_joystick.log` next to itself. Download them from the run's **Artifacts**.
 
 To publish a release:
 
@@ -15,7 +15,7 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-The tag's run attaches the signed `ptz_joystick.exe` to a GitHub Release named after the tag. The tag is baked into the exe as its version (`ptz_joystick/app/version.py`), which is what the update check compares. Tags must look like `v1.2.3`, or the check ignores them.
+The tag's run attaches both signed exes to a GitHub Release named after the tag. The tag is baked into the exe as its version (`ptz_joystick/app/version.py`), which is what the update check compares. Tags must look like `v1.2.3`, or the check ignores them.
 
 ## Signing certificate (one-time setup)
 

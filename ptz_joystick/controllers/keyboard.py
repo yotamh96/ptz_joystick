@@ -2,21 +2,26 @@
 
 Arrows = left stick (pan / tilt), W / S = right stick up / down (zoom), keys 1-4 = buttons 1-4.
 A key reads as the stick pushed fully, so moves run at pan_max / tilt_max / zoom_max.
-Keys count only while this program's window is in front (windows/focus.py); otherwise it reads as sticks centred,
+Keys count only while TARGET_EXE's window is in front (windows/focus.py); otherwise it reads as sticks centred,
 nothing held.
 """
 import ctypes
 import logging
 
 from ..config import Settings
-from ..windows.focus import OwnWindow
+from ..windows.elevation import is_admin
+from ..windows.focus import AppInFront
 from . import ControllerState
 
 log = logging.getLogger(__name__)
 
+TARGET_EXE = "Zao Virtual Cabin.exe"       # ponytail: hardcoded; make it a setting when a second app needs keys
 VK_LEFT, VK_UP, VK_RIGHT, VK_DOWN = 0x25, 0x26, 0x27, 0x28
 BUTTON_KEYS = "1234"       # a digit's or letter's virtual-key code is its ASCII code
-HELP = "Keyboard controller: arrows pan/tilt, W/S zoom in/out, 1-4 = presets. Keys work while this window is in front."
+HELP = ("Keyboard controller: arrows pan/tilt, W/S zoom in/out, 1-4 = presets. "
+        "Keys work while Zao Virtual Cabin is in front.")
+NOT_ADMIN = ("Not running as administrator: Zao Virtual Cabin runs as admin, so Windows hides the keys typed into it "
+             "from this program. Run it as administrator.")
 
 user32 = ctypes.WinDLL("user32")
 
@@ -28,7 +33,7 @@ def _held(vk: int) -> bool:
 class KeyboardController:
     def __init__(self, settings: Settings):
         self._pan, self._tilt, self._zoom = settings.pan_axis, settings.tilt_axis, settings.zoom_axis
-        self._window = OwnWindow()
+        self._window = AppInFront(TARGET_EXE)
 
     def read(self) -> ControllerState:
         def axis(minus: int, plus: int) -> float:
@@ -44,4 +49,6 @@ class KeyboardController:
 
 def start(settings: Settings) -> KeyboardController:
     log.info(HELP)
+    if not is_admin():
+        log.warning(NOT_ADMIN)
     return KeyboardController(settings)

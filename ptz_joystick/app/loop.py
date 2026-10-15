@@ -1,6 +1,7 @@
 """The control loop: read the controller, send what changed, and always leave the camera stopped."""
 import logging
-import time
+import threading
+from collections.abc import Callable
 
 from ..config import Settings
 from ..controllers import Controller
@@ -11,11 +12,15 @@ from ..core.sender import CommandSender
 log = logging.getLogger(__name__)
 
 
-def run(s: Settings, controller: Controller, sender: CommandSender, period=0.05):
+def run(s: Settings, controller: Controller, sender: CommandSender, period=0.05,
+        stop: threading.Event | None = None, on_controller: Callable[[bool], None] | None = None):
+    """Drive the camera until stop is set (or Ctrl+C). on_controller(False) when the controller is lost,
+    on_controller(True) when it's back."""
+    stop = stop or threading.Event()
     mapper = Mapper(s)
     lost = False
     try:
-        while True:
+        while not stop.is_set():
             state = controller.read()
             if (state is None) != lost:
                 lost = state is None
@@ -23,6 +28,8 @@ def run(s: Settings, controller: Controller, sender: CommandSender, period=0.05)
                     log.warning("Controller lost, camera stopped. Waiting for it...")
                 else:
                     log.info("Controller back.")
+                if on_controller:
+                    on_controller(not lost)
             if s.debug and state:
                 log.debug("%s buttons=%#06x", {a: round(v, 2) for a, v in state.axes.items()}, state.buttons)
             for cmd in mapper.update(state):
@@ -31,7 +38,7 @@ def run(s: Settings, controller: Controller, sender: CommandSender, period=0.05)
                 elif isinstance(cmd, Tracking):
                     log.info("Auto-tracking %s.", "on" if cmd.on else "off")
                 sender.send(cmd)
-            time.sleep(period)
+            stop.wait(period)
     finally:                            # never leave the camera moving
         stop_camera(sender)
 

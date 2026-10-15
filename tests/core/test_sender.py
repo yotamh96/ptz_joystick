@@ -203,6 +203,48 @@ class SenderTest(unittest.TestCase):
         self.assertNotIn(Zoom(3), cam.calls)
         self.assertEqual(cam.calls[-2:], [PanTilt(0, 0), Zoom(0)])
 
+    def test_on_camera_reports_changes_only(self):
+        seen: list[bool] = []
+        s = CommandSender(FakeCamera(fail_first=2), backoff=0.01, on_camera=seen.append)
+        s.send(PanTilt(5, 0))
+        self.assertTrue(wait_idle(s))
+        self.assertEqual(seen, [False, True])           # refused, refused (no news), taken
+
+    def test_adapter_error_counts_as_not_answering(self):
+        seen: list[bool] = []
+        s = CommandSender(RaisingCamera(raise_first=1, error=OSError), backoff=0.01, on_camera=seen.append)
+        with self.assertLogs("ptz_joystick.core.sender", "ERROR"):
+            s.send(PanTilt(5, 0))
+            self.assertTrue(wait_idle(s))
+        self.assertEqual(seen, [False, True])
+
+    def test_unsupported_command_says_nothing_about_the_camera(self):
+        seen: list[bool] = []
+
+        class NoPresets(FakeCamera):
+            def send(self, cmd):
+                if isinstance(cmd, Preset):
+                    raise TypeError("camera can't do that")
+                return super().send(cmd)
+
+        s = CommandSender(NoPresets(), backoff=0.01, on_camera=seen.append)
+        with self.assertLogs("ptz_joystick.core.sender", "ERROR"):
+            s.send(Preset(1))
+            self.assertTrue(wait_idle(s))
+        self.assertEqual(seen, [])
+
+    def test_on_camera_error_is_logged_and_sending_goes_on(self):
+        def broken(ok):
+            raise RuntimeError("tray gone")
+
+        cam = FakeCamera()
+        s = CommandSender(cam, backoff=0.01, on_camera=broken)
+        with self.assertLogs("ptz_joystick.core.sender", "ERROR"):
+            s.send(PanTilt(5, 0))
+            self.assertTrue(wait_idle(s))
+        self.assertTrue(s.drain_with([PanTilt(0, 0)], timeout=1))
+        self.assertEqual(cam.calls, [PanTilt(5, 0), PanTilt(0, 0)])
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -3,6 +3,7 @@ Latest command per type wins; it stays pending until the camera accepts it (fail
 import logging
 import threading
 import time
+from collections.abc import Callable
 
 from ..cameras import Camera
 from .commands import MOVES, Command
@@ -16,10 +17,12 @@ GIVE_UP_AFTER = 3
 
 
 class CommandSender:
-    def __init__(self, camera: Camera, backoff=0.2):
-        self._camera, self._backoff = camera, backoff
+    def __init__(self, camera: Camera, backoff=0.2, on_camera: Callable[[bool], None] | None = None):
+        # on_camera(ok): called from the sender thread when the camera starts (True) or stops (False) taking commands
+        self._camera, self._backoff, self._on_camera = camera, backoff, on_camera
         self._pending: dict[type, Command] = {}             # command type -> latest command
         self._tries: dict[type, tuple[Command, int]] = {}   # command type -> (command, refusals); sender thread only
+        self._answering: bool | None = None  # did the camera take the last command it answered? sender thread only
         self._closed = False         # set by drain_with: nothing may follow the final stops
         self._cv = threading.Condition()
         threading.Thread(target=self._run, daemon=True).start()
@@ -78,6 +81,19 @@ class CommandSender:
             # stop. Full traceback the first time per command, not on every retry.
             again = self._tries.get(type(cmd), (None, 0))[0] == cmd
             log.log(logging.DEBUG if again else logging.ERROR, "sending %s failed", cmd, exc_info=True)
-            return False
-        log.debug("sent %s" if ok else "camera refused %s", cmd)
+            ok = False
+        else:
+            log.debug("sent %s" if ok else "camera refused %s", cmd)
+        self._answered(ok)
         return ok
+
+    def _answered(self, ok: bool):
+        """Tell on_camera when the camera starts or stops taking commands: on a change, not on every send."""
+        if ok == self._answering:
+            return
+        self._answering = ok
+        if self._on_camera:
+            try:
+                self._on_camera(ok)
+            except Exception:
+                log.exception("on_camera failed")
