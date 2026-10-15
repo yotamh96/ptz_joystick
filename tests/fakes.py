@@ -2,6 +2,7 @@
 import logging
 
 from ptz_joystick.controllers import ControllerState
+from ptz_joystick.core.problem import Problem
 
 
 class ScriptedController:
@@ -31,6 +32,8 @@ class SetsStop(ScriptedController):
 
 
 class RecordingCamera:
+    problem: Problem | None = None      # the Camera port's "why the last send failed"; this one never fails
+
     def __init__(self):
         self.calls = []
 

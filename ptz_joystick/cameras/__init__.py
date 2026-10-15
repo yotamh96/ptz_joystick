@@ -2,17 +2,22 @@
 from typing import Protocol
 
 from ..core.commands import Command
+from ..core.problem import Problem
 
 
 class Camera(Protocol):
+    problem: Problem | None
+    """Why the last send() failed, in the operator's words; None after a success. The tray shows it."""
+
     def send(self, cmd: Command, /) -> bool:
         """Send one command from core/commands.py. True = the camera took it.
 
         Rules for an adapter:
         - PanTilt(0, 0) is "stop" and must always work: it is the startup check and the last thing sent.
-        - Camera down, timeout, refused: return False, and log it once per outage, not per call (see
-          ptzoptics.py). The sender retries stick moves until taken and drops a button action after 3
-          refusals.
+        - Camera down, timeout, refused: set problem to why, as a Problem (core/problem.py; wording rules in
+          docs/extending.md, "Writing a message"), return False, and log problem.log_line() once per outage,
+          not per call (see ptzoptics.py). After a success, set problem back to None. The sender retries stick
+          moves until taken and drops a button action after 3 refusals.
         - A command type this camera can't do at all (a camera without zoom, say): raise TypeError. The
           sender drops it.
         - Return within about a second (use a timeout): at shutdown the stops get 3 s in total.

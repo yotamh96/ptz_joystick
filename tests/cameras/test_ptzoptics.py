@@ -70,14 +70,27 @@ class SendTest(contracts.CameraContract):
             results = [cam.send(PanTilt(0, 0)) for _ in range(4)]
         self.assertEqual(results, [False, False, False, True])
         self.assertEqual(len(logs.output), 2, logs.output)
-        self.assertIn("unreachable", logs.output[0])
-        self.assertIn("back", logs.output[1])
+        self.assertIn("Can't reach the camera at http://cam. Check host in ptz_joystick.toml and the network.",
+                      logs.output[0])
+        self.assertIn("The camera is answering again (was: unreachable)", logs.output[1])
+
+    def test_recovery_clears_the_reason(self):
+        cam = camera_answering(requests.ConnectTimeout("x"), 200)
+        with self.assertLogs("ptz_joystick.cameras.ptzoptics", "INFO"):
+            cam.send(PanTilt(0, 0))
+            self.assertIsNotNone(cam.problem)
+            cam.send(PanTilt(0, 0))
+        self.assertIsNone(cam.problem)                  # or the tray would keep showing an old reason
 
     def test_wrong_password_says_so(self):
         cam = camera_answering(401)
         with self.assertLogs("ptz_joystick.cameras.ptzoptics", "WARNING") as logs:
             self.assertFalse(cam.send(PanTilt(0, 0)))
-        self.assertIn("PTZ_PASSWORD", logs.output[0])
+        problem = cam.problem
+        assert problem is not None
+        self.assertEqual(problem.text(),
+                         "The camera refused the login. Check user in ptz_joystick.toml and PTZ_PASSWORD.")
+        self.assertIn("(HTTP 401)", logs.output[0])
 
     def test_new_kind_of_failure_is_logged(self):
         cam = camera_answering(requests.ConnectTimeout("x"), 500)

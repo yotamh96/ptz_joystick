@@ -4,11 +4,13 @@ import unittest
 from dataclasses import dataclass
 
 from ptz_joystick.core.commands import PanTilt, Preset, Zoom
+from ptz_joystick.core.problem import Problem
 from ptz_joystick.core.sender import CommandSender
 
 
 class FakeCamera:
     """Answers like the real one: False = camera said 500 / timed out."""
+    problem: Problem | None = None      # the Camera port's attribute; the sender never reads it
 
     def __init__(self, fail_first=0, delay=0.0):
         self.calls, self.fail_first, self.delay = [], fail_first, delay

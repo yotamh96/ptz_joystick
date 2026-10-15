@@ -18,6 +18,7 @@ from ptz_joystick.core.commands import (
     Tracking,
     Zoom,
 )
+from ptz_joystick.core.problem import Problem
 
 EXAMPLES: list[Command] = [PanTilt(3, -4), Zoom(-3), Preset(4), SavePreset(4), Tracking(True)]    # one of each command type
 STOPS: list[Command] = [PanTilt(0, 0), Zoom(0)]
@@ -54,6 +55,17 @@ class CameraContract(unittest.TestCase):
             results = [cam.send(PanTilt(0, 0)) for _ in range(3)]
         self.assertEqual(results, [False] * 3)
         self.assertEqual(len(logs.records), 1, logs.output)
+
+    def test_camera_down_says_why_and_up_says_nothing(self):
+        down = self.make(up=False)
+        with self.assertLogs(level="WARNING") as logs:
+            down.send(PanTilt(0, 0))
+        problem = down.problem
+        assert isinstance(problem, Problem), problem
+        self.assertIn(problem.what, logs.output[0])                 # the log line is the operator's sentence
+        up = self.make(up=True)
+        up.send(PanTilt(0, 0))
+        self.assertIsNone(up.problem)
 
     def test_top_speeds_cover_every_speed_setting(self):
         self.assertEqual(set(self.top_speeds), {"pan_max", "tilt_max", "zoom_max"})
