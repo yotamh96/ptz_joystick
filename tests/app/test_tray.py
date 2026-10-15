@@ -199,12 +199,55 @@ class TrayAppTest(unittest.TestCase):
 
     def test_menu_in_a_source_run(self):
         self.assertEqual([e.text if e else "---" for e in self.app._entries()],
-                         ["Starting…", "---", "Open settings", "Open log", "Restart", "---", "Quit"])
+                         ["Starting…", "---", "Settings…", "Open log", "Restart", "---", "Quit"])
 
-    def test_open_settings_keeps_a_path_with_spaces_whole(self):
-        with mock.patch.object(tray.subprocess, "Popen") as popen:
-            self.pick("Open settings")
+    def dialog(self):
+        """Stand in for the settings dialog module. -> (that module, the handle its open_dialog returns)."""
+        module = mock.Mock()
+        handle = module.open_dialog.return_value
+        handle.alive = True
+        self.enterContext(mock.patch.object(tray, "load_settings_dialog", return_value=module))
+        return module, handle
+
+    def test_settings_opens_the_dialog_then_brings_it_to_front(self):
+        module, handle = self.dialog()
+        self.pick("Settings…")
+        self.pick("Settings…")
+        module.open_dialog.assert_called_once()
+        self.assertEqual(module.open_dialog.call_args.args[0], SETTINGS)
+        handle.focus.assert_called_once_with()
+
+    def test_a_closed_dialog_opens_again(self):
+        module, handle = self.dialog()
+        self.pick("Settings…")
+        handle.alive = False
+        self.pick("Settings…")
+        self.assertEqual(module.open_dialog.call_count, 2)
+
+    def test_restart_from_the_dialog_runs_on_the_tray_thread(self):
+        module, _ = self.dialog()
+        self.app.start_session()
+        self.session(1)
+        self.pick("Settings…")
+        module.open_dialog.call_args.kwargs["on_restart"]()      # called on the dialog's thread
+        self.assertEqual(len(self.sessions.started), 1)          # queued, not run there
+        self.window.pump()
+        self.session(2)
+
+    def test_quit_closes_the_dialog(self):
+        _, handle = self.dialog()
+        self.pick("Settings…")
+        self.app.quit()
+        handle.close.assert_called_once_with()
+
+    def test_without_tkinter_settings_opens_notepad_with_the_whole_path(self):
+        with mock.patch.object(tray, "load_settings_dialog", return_value=None), \
+                mock.patch.object(tray.subprocess, "Popen") as popen:
+            self.pick("Settings…")
         popen.assert_called_once_with(["notepad.exe", str(SETTINGS)])
+
+    def test_the_dialog_module_loads(self):
+        self.assertIsNotNone(tray.load_settings_dialog())
 
     def test_open_log_is_grayed_without_a_log_file(self):
         self.assertTrue(self.entry("Open log").enabled)
