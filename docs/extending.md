@@ -10,14 +10,14 @@ Users pick the camera and controller with `camera =` and `controller =` in `ptz_
 
 1. Read the rules on `Camera.send` in `cameras/__init__.py`.
 2. Add `cameras/<name>.py` with:
-   - a class that has `send(cmd) -> bool`
+   - a class that has `send(cmd) -> bool` and a `problem` attribute: why the last send failed, as a `Problem` (`core/problem.py`), `None` after a success. Word it as in [Writing a message](#writing-a-message)
    - `TOP_SPEEDS = {"pan_max": …, "tilt_max": …, "zoom_max": …}`: the highest speed the camera accepts for each. Startup refuses settings above them.
 3. Add a line to `CAMERAS` in `app/registry.py`: `"<name>": CameraType(lambda s: YourCamera(s.host, …), <name>.TOP_SPEEDS)`. `mypy` checks the class against `Camera` there.
 4. Add `tests/cameras/test_<name>.py` with a class that subclasses `contracts.CameraContract` (`from tests import contracts`). Fill in two hooks:
    - `make(up)`: your camera with a fake connection that always works (`up=True`) or always fails
    - `top_speeds`
 
-   The contract checks that stops always work, every command is sent or refused with `TypeError`, a camera that's down returns `False` and logs once, and `TOP_SPEEDS` is complete. `tests/cameras/test_ptzoptics.py` is the example.
+   The contract checks that stops always work, every command is sent or refused with `TypeError`, a camera that's down returns `False`, logs once and says why in `problem`, and `TOP_SPEEDS` is complete. `tests/cameras/test_ptzoptics.py` is the example.
 5. Add `<name>` to the `camera` comment in `TEMPLATE` (`config/template.py`) and to the `camera` row in [settings.md](settings.md). A camera that needs new settings (a COM port, say) adds them to `Settings` (`config/settings.py`) and `TEMPLATE` too.
 
 If a camera adapter raises `TypeError` (a command it can't do at all), the sender logs it and drops that command. Any other error from an adapter counts as a refusal and is retried, so a network error can never lose a stop.
@@ -25,7 +25,7 @@ If a camera adapter raises `TypeError` (a command it can't do at all), the sende
 ## Adding a controller (XInput, pygame, MIDI)
 
 1. Read the rules on `Controller.read` in `controllers/__init__.py`.
-2. Add `controllers/<name>.py` with a class that has `read()`, and a function that takes `Settings` and returns a ready controller (like `keyboard.start`).
+2. Add `controllers/<name>.py` with a class that has `read()`, and a function that takes `Settings` and returns a ready controller (like `keyboard.start`). With no device, the function raises a `Problem` (`core/problem.py`) saying what to check, like `winmm.discover()`. The tray retries it every 5 s.
 3. Add a line to `CONTROLLERS` in `app/registry.py`: `"<name>": <name>.start`. `mypy` checks it against `Controller` there.
 4. Add `tests/controllers/test_<name>.py` with a class that subclasses `contracts.ControllerContract`. Fill in three hooks:
    - `at_rest()`: a reading with sticks centred and nothing held
@@ -34,6 +34,18 @@ If a camera adapter raises `TypeError` (a command it can't do at all), the sende
 
    The contract checks the axis letters, the -1..1 range, that button 1 is bit 0, and that unplugged reads `None`. `tests/controllers/test_winmm.py` and `test_keyboard.py` are the examples.
 5. Add `<name>` to the `controller` comment in `TEMPLATE` (`config/template.py`) and to the `controller` row in [settings.md](settings.md).
+
+## Writing a message
+
+Anything the operator should read is a `Problem` (`core/problem.py`): `Problem(what, fix, detail)`. Raise it to stop, or log `problem.log_line()` for a warning. The console and the tray add their own restart step ("run ptz_joystick again", "click Restart").
+
+1. `what` says what is wrong, not what the code did. One short sentence, capital first letter, no period.
+2. `fix` is an order the operator can follow. It names the setting, file or command. No period.
+3. Never put "restart" or "run again" in `fix`: the console or the tray adds its own step.
+4. HTTP codes, exception text and full paths go in `detail`. Only the log shows it.
+5. Keep `text()` within 120 characters.
+
+`tests/test_messages.py` checks rules 1, 2, 3 and 5 for every `Problem(...)` with plain text in it.
 
 ## New button action (home, focus, …)
 
