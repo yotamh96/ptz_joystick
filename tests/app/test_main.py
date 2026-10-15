@@ -97,14 +97,14 @@ class TrayFlagTest(MainTest):
         self.assertEqual(settings.log_file, r"C:\tools\ptz_joystick.log")
 
 
-
 class TrayAsAdminTest(MainTest):
     """Zao Virtual Cabin runs as admin, and Windows hides keys typed into it from a program that isn't."""
 
     def main(self, argv, relaunched=True):
         """main(argv) as a non-admin; relaunched: what the UAC prompt answers. Returns (relaunch mock, run_tray mock)."""
         self.is_admin.return_value = False
-        with mock.patch.object(app_main.elevation, "relaunch_as_admin", return_value=relaunched) as relaunch,                 mock.patch.object(app_main, "run_tray") as run_tray:
+        with mock.patch.object(app_main.elevation, "relaunch_as_admin", return_value=relaunched) as relaunch, \
+                mock.patch.object(app_main, "run_tray") as run_tray:
             app_main.main(argv)
         return relaunch, run_tray
 
@@ -125,7 +125,8 @@ class TrayAsAdminTest(MainTest):
         run_tray.assert_called_once()
 
     def test_already_admin_just_runs(self):
-        with mock.patch.object(app_main.elevation, "relaunch_as_admin") as relaunch,                 mock.patch.object(app_main, "run_tray") as run_tray:
+        with mock.patch.object(app_main.elevation, "relaunch_as_admin") as relaunch, \
+                mock.patch.object(app_main, "run_tray") as run_tray:
             app_main.main(["--tray"])
         relaunch.assert_not_called()
         run_tray.assert_called_once()

@@ -1,5 +1,6 @@
 import functools
 import os
+import sys
 import unittest
 from unittest import mock
 
@@ -45,7 +46,11 @@ class OwnsConsoleTest(unittest.TestCase):
 
     def test_double_clicked_exe_owns_its_window(self):
         self.assertTrue(self.owns([os.getpid()]))
-        self.assertTrue(self.owns([os.getppid(), os.getpid()]))     # onefile exe: the bootloader is our parent
+        with mock.patch.object(sys, "frozen", True, create=True):
+            self.assertTrue(self.owns([os.getppid(), os.getpid()]))     # onefile exe: the bootloader is our parent
+
+    def test_python_started_by_a_shell_is_in_a_terminal(self):
+        self.assertFalse(self.owns([os.getppid(), os.getpid()]))        # python -m: our parent is the shell
 
     def test_a_shell_on_the_console_means_a_terminal(self):
         shell = max(os.getpid(), os.getppid()) + 1

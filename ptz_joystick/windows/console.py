@@ -6,6 +6,7 @@ chance to stop the camera. Windows allows about 5 s.
 import ctypes
 import logging
 import os
+import sys
 from ctypes import wintypes
 
 from ..core.problem import Problem
@@ -47,7 +48,9 @@ def _console_pids() -> list[int]:
 
 def owns_console() -> bool:
     """True when this console window was opened for us (the exe was double-clicked), so it closes the moment we
-    exit. A terminal's shell on the list means it wasn't. Our parent counts as us: a PyInstaller onefile exe runs
-    as two processes."""
+    exit. A terminal's shell on the list means it wasn't."""
     pids = _console_pids()
-    return bool(pids) and set(pids) <= {os.getpid(), os.getppid()}
+    us = {os.getpid()}
+    if getattr(sys, "frozen", False):       # a PyInstaller onefile exe runs as two: the bootloader is our parent
+        us.add(os.getppid())                # (not from source: there the parent is the shell that ran python)
+    return bool(pids) and set(pids) <= us
