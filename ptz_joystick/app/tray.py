@@ -7,14 +7,13 @@ import threading
 from collections.abc import Callable
 from pathlib import Path
 
-from ..config import Settings
 from ..windows import autostart
 from ..windows.console import on_console_close
 from ..windows.tray import dots, menu
 from ..windows.tray.icon import NIIF_ERROR, NIIF_INFO, NIIF_WARNING, TrayIcon, fit
 from ..windows.tray.window import WM_APP_TRAY, HiddenWindow
-from .logs import setup_logging
 from .session import run_session
+from .startup import bootstrap_log
 from .status import GREEN, RED, YELLOW, Popup, Status
 from .version import VERSION
 
@@ -27,8 +26,7 @@ Event = Callable[[Status], Popup | None]
 
 
 def run_tray(path: Path, keyboard: bool):
-    """Until Quit. Logs to the default log file from the start, so even a missing password gets logged."""
-    setup_logging(Settings(log_file=str(bootstrap_log(path))))
+    """Until Quit. main() already logs to the default log file, so even a missing password gets logged."""
     log.info("ptz_joystick %s (tray)", VERSION)
     app = TrayApp(path, keyboard)
     if sys.stderr:                  # started from a terminal (--tray while developing): closing it is a Quit
@@ -38,11 +36,6 @@ def run_tray(path: Path, keyboard: bool):
         app.run()
     finally:                        # also on Ctrl+C in that terminal: never leave the camera moving
         app.shutdown()
-
-
-def bootstrap_log(path: Path) -> Path:
-    """The log file until the settings are read: the default one, next to the settings file."""
-    return path.parent / Settings().log_file
 
 
 def open_in_notepad(path: str):

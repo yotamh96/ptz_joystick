@@ -182,8 +182,7 @@ class TrayAppTest(unittest.TestCase):
                 raise KeyboardInterrupt                         # Ctrl+C lands at the loop's next window message
 
         with mock.patch.object(tray, "HiddenWindow", Interrupted), mock.patch.object(tray, "TrayIcon", Recorded), \
-                mock.patch.object(tray, "setup_logging"), mock.patch.object(tray, "on_console_close"), \
-                self.assertRaises(KeyboardInterrupt):
+                mock.patch.object(tray, "on_console_close"), self.assertRaises(KeyboardInterrupt):
             tray.run_tray(SETTINGS, keyboard=False)
         stop, _, _ = self.session(1)
         self.assertIn(stop, self.sessions.ended)                # joined: the loop's finally stopped the camera

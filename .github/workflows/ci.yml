@@ -74,6 +74,7 @@ jobs:
           }
 
       - name: Smoke test
+        timeout-minutes: 5               # a wrong "Press Enter to close." wait would hang the job
         run: |
           # No PTZ_PASSWORD on the runner: the exe must get through every import and stop at the password check.
           $out = & dist\ptz_joystick.exe 2>&1 | Out-String

@@ -13,6 +13,11 @@ from .version import VERSION
 log = logging.getLogger(__name__)
 
 
+def bootstrap_log(path: Path) -> Path:
+    """The log file until the settings are read: the default one, next to the settings file."""
+    return path.parent / Settings().log_file
+
+
 def prepare(path: Path, keyboard: bool) -> Settings:
     """The settings from path (written from the template on a first run), checked, with logging set up from them.
     keyboard: the --keyboard flag. Raises SystemExit naming the fix when PTZ_PASSWORD or a setting is wrong."""

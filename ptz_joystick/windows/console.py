@@ -5,6 +5,7 @@ chance to stop the camera. Windows allows about 5 s.
 """
 import ctypes
 import logging
+import os
 from ctypes import wintypes
 
 log = logging.getLogger(__name__)
@@ -33,3 +34,18 @@ def on_console_close(callback):
     else:
         log.warning("Can't watch for the console closing (%s): close with Ctrl+C to stop the camera.",
                     ctypes.WinError())
+
+
+def _console_pids() -> list[int]:
+    """The processes attached to this console; empty without one."""
+    pids = (wintypes.DWORD * 64)()
+    n = ctypes.windll.kernel32.GetConsoleProcessList(pids, len(pids))
+    return list(pids[:min(n, len(pids))])
+
+
+def owns_console() -> bool:
+    """True when this console window was opened for us (the exe was double-clicked), so it closes the moment we
+    exit. A terminal's shell on the list means it wasn't. Our parent counts as us: a PyInstaller onefile exe runs
+    as two processes."""
+    pids = _console_pids()
+    return bool(pids) and set(pids) <= {os.getpid(), os.getppid()}
