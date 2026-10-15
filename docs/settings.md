@@ -2,11 +2,13 @@
 
 [← README](../README.md)
 
-Settings live in `ptz_joystick.toml`: next to `ptz_joystick.exe`, or in the repo folder (next to README.md) when run with Python. If it's missing, the first run writes it with every setting, its default and a comment. Edit it, save, then restart (tray: right-click the dot → Restart).
+Change them in the tray: click the dot → **Settings…**. Save checks every value the way startup does, marks the one that's wrong, then asks whether to restart. It also sets the camera password (`PTZ_PASSWORD`, as `setx` does). Saving rewrites the file in the template's layout, so comments you added by hand are lost.
+
+Or edit the file itself. Settings live in `ptz_joystick.toml`: next to `ptz_joystick.exe`, or in the repo folder (next to README.md) when run with Python. If it's missing, the first run writes it with every setting, its default and a comment. Edit it, save, then restart (tray: right-click the dot → Restart).
 
 To use a different file: `python -m ptz_joystick --config D:\cams\studio2.toml` (same flag for the exe).
 
-A misspelled setting, a wrong type (`"24"` instead of `24`) or a `password` line stops startup with a message naming the file and the setting. The password only comes from `PTZ_PASSWORD`.
+A misspelled setting, a wrong type (`"24"` instead of `24`) or a `password` line stops startup with a message naming the file and the setting. The password only comes from `PTZ_PASSWORD` (Settings… or `setx`).
 
 | Setting | Default | What it does |
 |---|---|---|

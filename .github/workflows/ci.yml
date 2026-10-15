@@ -47,7 +47,7 @@ jobs:
             "VERSION = `"$env:GITHUB_REF_NAME`"" | Out-File ptz_joystick\app\version.py -Encoding ascii
           }
           "import ptz_joystick.__main__" | Out-File launch.py -Encoding ascii   # __main__.py uses relative imports
-          pyinstaller --onefile --name ptz_joystick launch.py
+          pyinstaller --onefile --exclude-module tkinter --name ptz_joystick launch.py   # no dialog: ~3 MB less
           # The same program started as --tray, built with no console window.
           "import sys; sys.argv.insert(1, '--tray'); import ptz_joystick.__main__" | Out-File launch_tray.py -Encoding ascii
           pyinstaller --onefile --windowed --name ptz_joystick_tray launch_tray.py

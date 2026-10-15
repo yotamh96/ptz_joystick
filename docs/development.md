@@ -40,7 +40,7 @@ ptz_joystick/          the package
   __main__.py          python -m ptz_joystick → app/main.py
   config/              every setting (import from config: config.load, config.Settings, ...)
     settings.py        Settings: defaults + validation, BUTTON_COMMANDS
-    template.py        the settings file's name, where it lives, the template a first run writes
+    template.py        the settings file's name, where it lives, the template a first run writes, writing it back
     loading.py         ptz_joystick.toml → Settings (types, buttons, encodings, error messages)
   app/                 runs the program
     main.py            composition root: reads settings, builds the adapters, runs the checks, starts the loop;
@@ -70,6 +70,8 @@ ptz_joystick/          the package
     autostart.py       Start with Windows: the HKCU Run key
     user_env.py        PTZ_PASSWORD as setx left it (HKCU\Environment)
     message_box.py     a message box, for errors before the tray icon exists
+    settings_dialog/   tray menu → Settings…, on its own thread (__init__.py): form.py (fields, no Tk),
+                       tabs.py (widgets), window.py (Save / Cancel / Open in Notepad)
     tray/              the tray's Windows API: window.py (message loop), icon.py, menu.py, dots.py
 tests/                 mirrors the package: tests/<folder>/test_<module>.py tests ptz_joystick/<folder>/<module>.py
   test_entry_point.py  __main__.py: Ctrl+C stays quiet

@@ -15,7 +15,7 @@ setx PTZ_PASSWORD "your-camera-password"
 
 ptz_joystick reads the new value even in a terminal that was open before `setx`.
 
-**No Python?** Download `ptz_joystick_tray.exe` (and `ptz_joystick.exe`, the console version, for troubleshooting) from the latest GitHub Release into one folder, then run the `setx` line. The first run creates `ptz_joystick.toml` next to the exes. Edit it to change settings ([every setting](docs/settings.md)); no rebuild needed.
+**No Python?** Download `ptz_joystick_tray.exe` (and `ptz_joystick.exe`, the console version, for troubleshooting) from the latest GitHub Release into one folder, then run the `setx` line. The first run creates `ptz_joystick.toml` next to the exes. Change settings from the tray (**Settings…**) or by editing it ([every setting](docs/settings.md)); no rebuild needed.
 
 ### Updating
 
@@ -43,8 +43,9 @@ Windows 11 hides new icons behind the **^** on the taskbar. To keep the dot in v
 
 Click the dot (either button) for the menu:
 
-- **Open settings**, **Open log**: in Notepad.
-- **Restart**: after editing the settings or running `setx PTZ_PASSWORD`.
+- **Settings…**: every setting and the camera password in one window. Save checks them, then asks whether to restart. **Open in Notepad** there edits the file itself.
+- **Open log**: in Notepad.
+- **Restart**: after editing the settings in Notepad or running `setx PTZ_PASSWORD`.
 - **Start with Windows**: off until you tick it. In the exe only.
 - **Quit**: stops the camera, then exits.
 
