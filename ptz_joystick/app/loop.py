@@ -51,4 +51,4 @@ def stop_camera(sender: CommandSender):
     if sender.drain_with([PanTilt(0, 0), Zoom(0)]):
         log.info("Camera stopped.")
     else:
-        log.error("Camera did not confirm stop.")
+        log.error(Problem("The camera didn't confirm the stop", fix="Check that it stopped moving").log_line())

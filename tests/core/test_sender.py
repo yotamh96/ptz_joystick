@@ -116,6 +116,7 @@ class SenderTest(unittest.TestCase):
             self.assertTrue(wait_idle(s, timeout=1))
         self.assertEqual(cam.calls, [Preset(3)] * 3)
         self.assertIn("Preset(number=3)", logs.output[-1])
+        self.assertIn("The camera didn't take a button command. Press the button again.", logs.output[-1])
 
     def test_refused_moves_keep_retrying_with_backoff(self):
         cam = FakeCamera(fail_first=10**6)

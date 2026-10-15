@@ -3,6 +3,7 @@ import logging
 import sys
 
 from ..config import Settings
+from ..core.problem import Problem
 
 log = logging.getLogger(__name__)
 
@@ -21,4 +22,5 @@ def setup_logging(s: Settings):
                         format="%(asctime)s %(levelname)-7s %(message)s", datefmt="%H:%M:%S")
     logging.getLogger("urllib3").setLevel(logging.WARNING)   # requests' own chatter at DEBUG
     if file_error:
-        log.warning("Can't write log file %s (%s): terminal only.", s.log_file, file_error)
+        log.warning(Problem("Can't write the log file", fix="Close any program that has it open, or change log_file",
+                            detail=f"{s.log_file}: {file_error}").log_line())

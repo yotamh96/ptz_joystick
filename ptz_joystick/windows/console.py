@@ -8,6 +8,8 @@ import logging
 import os
 from ctypes import wintypes
 
+from ..core.problem import Problem
+
 log = logging.getLogger(__name__)
 
 CTRL_CLOSE_EVENT, CTRL_LOGOFF_EVENT, CTRL_SHUTDOWN_EVENT = 2, 5, 6
@@ -32,8 +34,8 @@ def on_console_close(callback):
     if ctypes.windll.kernel32.SetConsoleCtrlHandler(routine, True):
         _registered.append(routine)
     else:
-        log.warning("Can't watch for the console closing (%s): close with Ctrl+C to stop the camera.",
-                    ctypes.WinError())
+        log.warning(Problem("Can't watch for the console window closing", fix="Quit with Ctrl+C so the camera stops",
+                            detail=str(ctypes.WinError())).log_line())
 
 
 def _console_pids() -> list[int]:
