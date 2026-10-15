@@ -1,15 +1,24 @@
-"""The settings file: its name, where it lives, and the commented template a first run writes."""
+"""The settings file: its name, where it lives, the commented template a first run writes, and writing it back."""
+import json
+import os
+import re
 import sys
 from pathlib import Path
 
 from ..core.problem import Problem
+from .loading import command_text
+from .settings import Settings
 
 FILE_NAME = "ptz_joystick.toml"
 
-TEMPLATE = """\
-# ptz_joystick settings. Edit, save, then restart ptz_joystick (tray: right-click → Restart).
+HEADER = """\
+# ptz_joystick settings. Easiest: tray menu → Settings…, which rewrites this file (comments you add are lost).
+# Or edit here, save, then restart ptz_joystick (tray: right-click → Restart).
 # The camera password is not here: set it with  setx PTZ_PASSWORD "..."
 
+"""
+# Every setting but the buttons, in file order. render() puts in the values and keeps each comment where it is.
+LAYOUT = """\
 camera = "ptzoptics"            # camera type: ptzoptics
 host = "http://192.168.77.3"    # camera address
 user = "admin"                  # camera user
@@ -33,13 +42,32 @@ save_hold_seconds = 2.0         # tap a preset button = go there; hold it this l
 debug = false                   # true logs every stick reading and every command sent
 log_file = "ptz_joystick.log"   # next to this file unless a full path; "" = terminal only
 check_updates = true            # at startup, log a line if a newer release is on GitHub
-
-[buttons]                       # button index (0 = "button 1" in joy.cpl) = command
-0 = "preset 1"
-1 = "preset 2"
-2 = "preset 3"
-3 = "preset 4"
 """
+BUTTONS = '[buttons]                       # button index (0 = "button 1" in joy.cpl) = command\n'
+SETTING_LINE = re.compile(r'^(\w+) = ("[^"]*"|\S+) *(#.*)?$', re.MULTILINE)       # name = value   # comment
+COMMENT_COLUMN = 32
+
+
+def toml_value(v: object) -> str:
+    """v as TOML writes it. json.dumps escapes backslash, quote and control characters as TOML does, except DEL."""
+    if isinstance(v, bool):
+        return "true" if v else "false"
+    if isinstance(v, str):
+        return json.dumps(v, ensure_ascii=False).replace("\x7f", "\\u007f")
+    return repr(v)
+
+
+def render(s: Settings) -> str:
+    """The settings file for s: the template's lines and comments with s's values. Never the password."""
+    def line(m: re.Match[str]) -> str:
+        text = f"{m[1]} = {toml_value(getattr(s, m[1]))}"
+        return f"{text:<{COMMENT_COLUMN - 1}} {m[3]}" if m[3] else text
+
+    rows = "".join(f"{b} = {toml_value(command_text(c))}\n" for b, c in sorted(s.buttons.items()))
+    return HEADER + SETTING_LINE.sub(line, LAYOUT) + "\n" + BUTTONS + rows
+
+
+TEMPLATE = render(Settings())
 
 
 def default_path() -> Path:
@@ -57,3 +85,14 @@ def write_template_if_missing(path: Path) -> bool:
         raise Problem(f"Can't create {path.name}", fix="Move the exe to a folder you can write to",
                       detail=str(e)) from None
     return True
+
+
+def save(path: Path, s: Settings):
+    """Write s to path as render() lays it out. Through a temp file, so a failed write never leaves half a file."""
+    tmp = path.with_name(path.name + ".tmp")
+    try:
+        tmp.write_text(render(s), encoding="utf-8")
+        os.replace(tmp, path)
+    except OSError as e:
+        raise Problem(f"Can't save {path.name}", fix="Check that you can write to its folder",
+                      detail=str(e)) from None

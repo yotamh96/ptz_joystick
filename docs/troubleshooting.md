@@ -33,7 +33,7 @@ To see what happened during a session, check the file afterwards. Set `debug = t
 | `Another ptz_joystick is already running` | Another copy runs: a tray dot (look behind **^**) or a console window. Quit it first |
 | Keyboard controller: keys do nothing | Keys only count while Zao Virtual Cabin is in front. Click its window first |
 | `Not running as administrator` | Zao runs as admin, so its keys only reach an admin. Tray: start it again and answer **Yes** to the UAC prompt. Console: open the terminal with **Run as administrator** |
-| `The camera password is not set` | Run `setx PTZ_PASSWORD "..."` in a terminal, then run ptz_joystick again (console, any terminal) or click **Restart** (tray) |
+| `The camera password is not set` | Type it in **Settings…** (tray), or run `setx PTZ_PASSWORD "..."` in a terminal, then run ptz_joystick again (console, any terminal) or click **Restart** (tray) |
 | `No controller found` | Open `joy.cpl` (Win+R). If the controller isn't listed or its crosshair doesn't move there, it's a cable, receiver or driver problem, not this tool |
 | `Bad setting in ptz_joystick.toml: the controller has no axis ...` | Set `debug = true`, run, move each stick, and see which letter changes. Put those letters in `pan_axis` / `tilt_axis` / `zoom_axis` |
 | Camera never reaches full speed | Set `debug = true` and push the stick to its edge. Set `full_speed_at` a little below the highest value you see |
@@ -45,7 +45,7 @@ To see what happened during a session, check the file afterwards. Set `debug = t
 | `The camera refused a command` | The camera answered with an HTTP error; the log line has the code. Check that its web page opens in a browser |
 | `The camera didn't take a button command` | The camera was down when the button was pressed, so the action was dropped after 3 tries. Press it again |
 | `Bad setting in ptz_joystick.toml: ...` | A setting is misspelled or has an invalid value. The message names it and the allowed range |
-| Changed a setting, nothing happened | Check the `Settings:` line at startup: it shows which file was read. Restart after saving (tray: right-click → Restart) |
+| Changed a setting, nothing happened | Answer **Yes** to "Restart now?" after Save in Settings…, or click **Restart**. After editing in Notepad: check the `Settings:` line at startup, it shows which file was read |
 | `Can't write the log file` | Another program has the log open, or the folder is read-only. The tool keeps running and logs to the terminal only (the tray version then has no log) |
 | `Wrong text encoding in ptz_joystick.toml` | The file was saved in an old encoding (for example ANSI with Hebrew text). In Notepad: File → Save as → Encoding: UTF-8 |
 | `Unexpected error in ptz_joystick` | Something failed that the tool doesn't expect. The log has the details (a traceback). Restart; if it comes back, send the log to whoever maintains the tool |

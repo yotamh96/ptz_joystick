@@ -1,14 +1,23 @@
 import os
 import unittest
 import winreg
+from unittest import mock
 
-from ptz_joystick.windows.user_env import user_env
+import ptz_joystick.windows.user_env as env_module
+from ptz_joystick.windows.user_env import set_user_env, user_env
 from tests.windows.scratch_key import scratch_key
 
 
 class UserEnvTest(unittest.TestCase):
     def setUp(self):
         self.key = scratch_key(self, "env")
+
+    def test_set_then_read_back_as_typed(self):
+        password = 'p%a"ss wörd מ'                     # % is not expanded, quotes and Hebrew survive
+        with mock.patch.object(env_module.user32, "SendMessageTimeoutW") as broadcast:
+            set_user_env("PTZ_PASSWORD", password, self.key)
+        self.assertEqual(user_env("PTZ_PASSWORD", self.key), password)
+        broadcast.assert_called_once()                  # Explorer hears of it, as after setx
 
     def set(self, value, kind=winreg.REG_SZ):
         with winreg.OpenKey(winreg.HKEY_CURRENT_USER, self.key, 0, winreg.KEY_SET_VALUE) as k:

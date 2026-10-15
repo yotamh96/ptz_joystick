@@ -72,6 +72,33 @@ class LoadTest(unittest.TestCase):
         self.assertEqual(cm.exception.what, "Can't read does-not-exist.toml")
         self.assertIn("does-not-exist.toml", cm.exception.detail)
 
+class CommandTextTest(unittest.TestCase):
+    def test_reverse_of_parse_command(self):
+        for text in ("preset 0", "preset 12", "tracking"):
+            with self.subTest(text):
+                self.assertEqual(config.command_text(config.parse_command(text)), text)
+
+    def test_which_actions_take_a_number(self):
+        self.assertEqual({a: config.takes_number(a) for a in config.BUTTON_COMMANDS},
+                         {"preset": True, "tracking": False})
+
+
+class ReadTest(unittest.TestCase):
+    def test_keeps_the_file_as_written_and_needs_no_password(self):
+        with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ, {"PTZ_PASSWORD": ""}):
+            path = Path(d) / config.FILE_NAME
+            path.write_text("log_file = 'logs\\ptz.log'", encoding="utf-8")
+            s = config.read(path)
+        self.assertEqual((s.log_file, s.password), ("logs\\ptz.log", ""))
+
+    def test_a_bad_file_is_a_bad_setting(self):
+        with tempfile.TemporaryDirectory() as d, self.assertRaises(Problem) as cm:
+            path = Path(d) / config.FILE_NAME
+            path.write_text('hots = "x"', encoding="utf-8")
+            config.read(path)
+        self.assertEqual(cm.exception.what, f"Bad setting in {config.FILE_NAME}: unknown setting 'hots'")
+
+
 class EncodingTest(unittest.TestCase):
     """Notepad can save the settings file in several encodings: each loads, or the error says what to do."""
 

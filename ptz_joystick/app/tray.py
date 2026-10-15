@@ -6,6 +6,7 @@ import sys
 import threading
 from collections.abc import Callable
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from ..core.problem import Problem
 from ..windows import autostart
@@ -13,10 +14,15 @@ from ..windows.console import on_console_close
 from ..windows.tray import dots, menu
 from ..windows.tray.icon import NIIF_ERROR, NIIF_INFO, NIIF_WARNING, TrayIcon, fit
 from ..windows.tray.window import WM_APP_TRAY, HiddenWindow
+from .checks import type_error
+from .registry import CAMERAS, CONTROLLERS
 from .session import run_session
 from .startup import bootstrap_log
 from .status import GREEN, RED, YELLOW, Popup, Status
 from .version import VERSION
+
+if TYPE_CHECKING:
+    from ..windows.settings_dialog import Handle
 
 log = logging.getLogger(__name__)
 
@@ -43,6 +49,16 @@ def open_in_notepad(path: str):
     subprocess.Popen(["notepad.exe", path])     # a list, so a path with spaces stays one argument
 
 
+def load_settings_dialog():
+    """The settings dialog's module, or None without tkinter: some Python installs, and the console exe (CI leaves
+    Tcl/Tk out of it)."""
+    try:
+        from ..windows import settings_dialog
+    except ImportError:
+        return None
+    return settings_dialog
+
+
 class TrayApp:
     """Lives on the main thread, which runs the window's message loop."""
 
@@ -56,6 +72,7 @@ class TrayApp:
         self._session = 0                   # the current session's number: older sessions' news is dropped
         self._stop = threading.Event()
         self._thread: threading.Thread | None = None
+        self._dialog: Handle | None = None  # the settings dialog, while it's open
         self._show()
 
     def run(self):
@@ -76,8 +93,10 @@ class TrayApp:
         self.start_session()
 
     def shutdown(self):
-        """Stop the camera and remove the icon: Quit, logoff, shutdown, a closed terminal."""
+        """Stop the camera, close the settings dialog, remove the icon: Quit, logoff, shutdown, a closed terminal."""
         self._stop_session()
+        if self._dialog:
+            self._dialog.close()
         self._icon.remove()
 
     def quit(self):
@@ -124,7 +143,7 @@ class TrayApp:
         entries: list[menu.Entry] = [
             menu.Item(fit(self._status.text, 128)),
             None,
-            menu.Item("Open settings", lambda: open_in_notepad(str(self._path))),
+            menu.Item("Settings…", self._open_settings),
             menu.Item("Open log", lambda: open_in_notepad(log_file), enabled=bool(log_file)),
             menu.Item("Restart", self.restart),
         ]
@@ -141,6 +160,18 @@ class TrayApp:
             entries.append(menu.Item("Start with Windows", toggle, checked=on))
         entries += [None, menu.Item("Quit", self.quit)]
         return entries
+
+    def _open_settings(self):
+        if self._dialog and self._dialog.alive:
+            self._dialog.focus()
+            return
+        dialog = load_settings_dialog()
+        if dialog is None:
+            open_in_notepad(str(self._path))
+            return
+        self._dialog = dialog.open_dialog(
+            self._path, {name: t.top_speeds for name, t in CAMERAS.items()}, list(CONTROLLERS), type_error,
+            on_restart=lambda: self._window.post(self.restart), on_notepad=lambda: open_in_notepad(str(self._path)))
 
 
 class _Report:

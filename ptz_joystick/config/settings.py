@@ -1,4 +1,5 @@
 """Settings: every setting, its default and its validation. ptz_joystick.toml overrides the defaults (loading.py)."""
+import inspect
 from collections.abc import Callable
 from dataclasses import dataclass, field
 
@@ -13,6 +14,11 @@ BUTTON_COMMANDS: dict[str, tuple[Callable[..., Command], str]] = {
     "preset": (Preset, "preset N (N = a whole number, 0 or more)"),
     "tracking": (lambda: Tracking(True), "tracking"),
 }
+
+
+def takes_number(action: str) -> bool:
+    """Whether a BUTTON_COMMANDS action is written with a number ("preset 3") or alone ("tracking")."""
+    return bool(inspect.signature(BUTTON_COMMANDS[action][0]).parameters)
 
 
 

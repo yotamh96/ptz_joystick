@@ -18,7 +18,7 @@ Users pick the camera and controller with `camera =` and `controller =` in `ptz_
    - `top_speeds`
 
    The contract checks that stops always work, every command is sent or refused with `TypeError`, a camera that's down returns `False`, logs once and says why in `problem`, and `TOP_SPEEDS` is complete. `tests/cameras/test_ptzoptics.py` is the example.
-5. Add `<name>` to the `camera` comment in `TEMPLATE` (`config/template.py`) and to the `camera` row in [settings.md](settings.md). A camera that needs new settings (a COM port, say) adds them to `Settings` (`config/settings.py`) and `TEMPLATE` too.
+5. Add `<name>` to the `camera` comment in `LAYOUT` (`config/template.py`) and to the `camera` row in [settings.md](settings.md). It shows in the settings dialog's Camera type list by itself. A camera that needs new settings (a COM port, say) adds them to `Settings` (`config/settings.py`), `LAYOUT`, and `FIELDS` in `windows/settings_dialog/form.py` (its tab and label; a test fails until it has one).
 
 If a camera adapter raises `TypeError` (a command it can't do at all), the sender logs it and drops that command. Any other error from an adapter counts as a refusal and is retried, so a network error can never lose a stop.
 
@@ -33,7 +33,7 @@ If a camera adapter raises `TypeError` (a command it can't do at all), the sende
    - `unplugged()`: a reading with the device gone. Leave it out if the device can't be unplugged
 
    The contract checks the axis letters, the -1..1 range, that button 1 is bit 0, and that unplugged reads `None`. `tests/controllers/test_winmm.py` and `test_keyboard.py` are the examples.
-5. Add `<name>` to the `controller` comment in `TEMPLATE` (`config/template.py`) and to the `controller` row in [settings.md](settings.md).
+5. Add `<name>` to the `controller` comment in `LAYOUT` (`config/template.py`) and to the `controller` row in [settings.md](settings.md). It shows in the settings dialog's Controller list by itself.
 
 ## Writing a message
 
@@ -51,7 +51,7 @@ Anything the operator should read is a `Problem` (`core/problem.py`): `Problem(w
 
 1. Read the rules at the top of `core/commands.py`: a complete instruction that is safe to send twice.
 2. Add a frozen dataclass there and add it to `Command`.
-3. Give it a name in `BUTTON_COMMANDS` in `config/settings.py`, then map a button to it in `ptz_joystick.toml`.
+3. Give it a name in `BUTTON_COMMANDS` in `config/settings.py`, then map a button to it in `ptz_joystick.toml`. It shows in the settings dialog's Action list by itself.
 4. Add an example to `EXAMPLES` in `tests/contracts.py`, and a `case` for it in every camera's adapter (`to_query()` in `cameras/ptzoptics.py`). The contract tests fail until you do both.
 
 The sender needs no change: anything that isn't a stick move gets 3 tries, then is dropped.
