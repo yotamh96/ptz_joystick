@@ -1,10 +1,13 @@
-"""The settings dialog (tray menu → Settings…): every setting and the camera password in one window. It runs on its
-own thread: Tk must stay on the thread that made it, and the tray's thread runs the icon's message loop.
+"""The settings dialog (tray menu → Settings…): every setting and the camera password in one window. It runs on a
+thread of its own, the same one for every open: Tk must stay on the thread that made it, the tray's thread runs the
+icon's message loop, and Tcl keeps ~0.5 MB for every thread that ever ran Tk, for good.
 open_dialog() is all the tray uses. Windows only."""
 import ctypes
+import functools
 import gc
 import logging
 import os
+import queue
 import threading
 import tkinter as tk
 from collections.abc import Callable
@@ -37,12 +40,12 @@ class Handle:
 
     def __init__(self):
         self.closing = threading.Event()
+        self.done = threading.Event()   # this open is over: the window closed, or never opened
         self.hwnd = 0                   # the window, once the dialog's thread has made it
-        self.thread: threading.Thread | None = None
 
     @property
     def alive(self) -> bool:
-        return self.thread is not None and self.thread.is_alive()
+        return not self.done.is_set()
 
     def focus(self):
         """Bring the window to the front. Allowed: the tray's menu has just given this process the foreground."""
@@ -53,20 +56,30 @@ class Handle:
     def close(self):
         """Close the window (unsaved changes are dropped) and wait for it."""
         self.closing.set()
-        if self.thread:
-            self.thread.join(CLOSE_SECONDS)
+        self.done.wait(CLOSE_SECONDS)
 
 
 def open_dialog(path: Path, cameras: dict[str, dict[str, int]], controllers: list[str],
                 type_error: Callable[[Settings], str | None], on_restart: Callable[[], None],
                 on_notepad: Callable[[], None]) -> Handle:
-    """Start the dialog on its own thread. cameras: each camera type's top speeds. The callbacks run on the dialog's
-    thread, so on_restart must hand over to the tray's thread (HiddenWindow.post)."""
+    """Show the dialog on the dialog's thread. cameras: each camera type's top speeds. The callbacks run on the
+    dialog's thread, so on_restart must hand over to the tray's thread (HiddenWindow.post)."""
     handle = Handle()
-    handle.thread = threading.Thread(target=_run, name="settings-dialog", daemon=True,
-                                     args=(handle, path, cameras, controllers, type_error, on_restart, on_notepad))
-    handle.thread.start()
+    _dialog_thread().put(lambda: _run(handle, path, cameras, controllers, type_error, on_restart, on_notepad))
     return handle
+
+
+@functools.cache
+def _dialog_thread() -> queue.SimpleQueue[Callable[[], None]]:
+    """The dialog's thread, started on the first open and kept for the life of the tray. -> its to-do queue."""
+    jobs: queue.SimpleQueue[Callable[[], None]] = queue.SimpleQueue()
+
+    def serve():
+        while True:
+            jobs.get()()
+
+    threading.Thread(target=serve, name="settings-dialog", daemon=True).start()
+    return jobs
 
 
 def _run(handle: Handle, path: Path, cameras, controllers, type_error, on_restart, on_notepad):
@@ -93,3 +106,5 @@ def _run(handle: Handle, path: Path, cameras, controllers, type_error, on_restar
     except Exception:           # Tk can't run here (a broken build?): the file in Notepad, as before the dialog
         log.exception("Settings dialog failed, opening the settings file in Notepad instead")
         on_notepad()
+    finally:
+        handle.done.set()
