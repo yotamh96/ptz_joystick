@@ -2,6 +2,8 @@
 import sys
 from pathlib import Path
 
+from ..core.problem import Problem
+
 FILE_NAME = "ptz_joystick.toml"
 
 TEMPLATE = """\
@@ -52,5 +54,6 @@ def write_template_if_missing(path: Path) -> bool:
     try:
         path.write_text(TEMPLATE, encoding="utf-8")
     except OSError as e:
-        raise SystemExit(f"Can't create settings file {path}: {e}") from None
+        raise Problem(f"Can't create {path.name}", fix="Move the exe to a folder you can write to",
+                      detail=str(e)) from None
     return True

@@ -3,6 +3,7 @@ import ctypes
 import logging
 import time
 
+from ..core.problem import Problem
 from . import ControllerState
 
 log = logging.getLogger(__name__)
@@ -68,7 +69,7 @@ def discover() -> WinmmController:
                 pass
     start = {d: st.axes for d, c in found.items() if (st := c.read())}
     if not start:
-        raise SystemExit("No controller found. Check that it shows in joy.cpl.")
+        raise Problem("No controller found", fix="Plug it in and check that it shows in joy.cpl")
     log.info("Joystick IDs found: %s", list(start))
     log.info("Move the left stick now...")
     while True:

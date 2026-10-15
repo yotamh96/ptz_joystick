@@ -9,10 +9,11 @@ from typing import Any
 from unittest import mock
 
 from ptz_joystick import config
-from ptz_joystick.app import session
+from ptz_joystick.app import session, startup
 from ptz_joystick.app.registry import CAMERAS, CONTROLLERS, CameraType
 from ptz_joystick.cameras import ptzoptics
 from ptz_joystick.core.commands import PanTilt, Zoom
+from ptz_joystick.core.problem import Problem
 from tests.fakes import (
     RecordingCamera,
     ScriptedController,
@@ -22,7 +23,7 @@ from tests.fakes import (
 )
 
 HOST = config.Settings().host
-NO_PAD = "No controller found. Check that it shows in joy.cpl."
+NO_PAD = Problem("No controller found", fix="Plug it in and check that it shows in joy.cpl")
 STOPS = {PanTilt: PanTilt(0, 0), Zoom: Zoom(0)}
 
 
@@ -78,7 +79,7 @@ class SessionTest(unittest.TestCase):
         self.path = Path(self.enterContext(tempfile.TemporaryDirectory())) / config.FILE_NAME
         self.addCleanup(reset_logging)          # before the folder is deleted: cleanups go last-in, first-out
         self.enterContext(mock.patch.dict(os.environ, {"PTZ_PASSWORD": "pw"}))
-        self.enterContext(mock.patch.object(session, "user_env", return_value=None))   # never the real registry
+        self.enterContext(mock.patch.object(startup, "user_env", return_value=None))   # never the real registry
         self.report, self.stop, self.camera = RecordingReport(), threading.Event(), FlakyCamera()
         self.enterContext(mock.patch.dict(CAMERAS, {"ptzoptics": CameraType(lambda s: self.camera,
                                                                             ptzoptics.TOP_SPEEDS)}))
@@ -110,23 +111,16 @@ class SessionTest(unittest.TestCase):
 
     def test_missing_password_is_red_with_the_fix(self):
         del os.environ["PTZ_PASSWORD"]
-        self.run_session()
-        [(name, message)] = self.report.calls
-        self.assertEqual(name, "stopped")
-        self.assertIn("Set the camera password first", message)
-
-    def test_a_password_set_with_setx_after_start_is_used(self):
-        del os.environ["PTZ_PASSWORD"]
-        with mock.patch.object(session, "user_env", return_value="from-setx"):
-            self.run_session()
-        self.assertIn("driving", self.names())
-        self.assertEqual(os.environ["PTZ_PASSWORD"], "from-setx")
+        logs = self.run_session()
+        text = 'The camera password is not set. Run setx PTZ_PASSWORD "..." in a terminal, then click Restart.'
+        self.assertEqual(self.report.calls, [("stopped", text)])
+        self.assertTrue(any(line.startswith("ERROR") and "then click Restart" in line for line in logs.output))
 
     def test_no_controller_waits_and_tries_again(self):
-        self.controllers.insert(0, SystemExit(NO_PAD))
+        self.controllers.insert(0, NO_PAD)
         self.run_session()
         self.assertEqual(self.names(), ["log_to", "waiting_for_stick", "no_controller", "waiting_for_stick", "driving"])
-        self.assertIn(("no_controller", NO_PAD), self.report.calls)
+        self.assertIn(("no_controller", NO_PAD.text()), self.report.calls)
 
     def test_a_crash_while_driving_stops_the_camera_and_goes_red(self):
         class Breaks(ScriptedController):
@@ -137,7 +131,8 @@ class SessionTest(unittest.TestCase):
 
         self.controllers = [Breaks(moving(x=1), moving(x=1))]
         logs = self.run_session()
-        self.assertEqual(self.report.calls[-1], ("stopped", "Crashed: RuntimeError('boom'). See the log."))
+        self.assertEqual(self.report.calls[-1],
+                         ("stopped", "Unexpected error in ptz_joystick. See the log for details, then click Restart."))
         self.assertTrue(any(line.startswith("CRITICAL") and "boom" in line for line in logs.output))
         self.assertEqual({type(c): c for c in self.camera.calls}, STOPS)
 

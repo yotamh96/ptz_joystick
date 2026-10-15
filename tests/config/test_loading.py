@@ -7,6 +7,7 @@ from unittest import mock
 from ptz_joystick import config
 from ptz_joystick.config import Settings
 from ptz_joystick.core.commands import Preset
+from ptz_joystick.core.problem import Problem
 
 
 class LoadTest(unittest.TestCase):
@@ -34,7 +35,7 @@ class LoadTest(unittest.TestCase):
                 with self.subTest(text=text):
                     self.assertEqual(config.load(path).log_file, want)
 
-    def test_bad_file_is_clean_exit_naming_file_and_key(self):
+    def test_bad_file_names_file_and_key(self):
         for text, word in [
             ('hots = "x"', "unknown setting 'hots'"),
             ('password = "x"', "PTZ_PASSWORD"),
@@ -53,19 +54,23 @@ class LoadTest(unittest.TestCase):
             ("[buttons]\n40 = \"preset 1\"", "buttons"),
             ("host = ", "Invalid value"),                    # TOML syntax error
         ]:
-            with self.subTest(text=text), self.assertRaisesRegex(SystemExit, f"{config.FILE_NAME}: .*{word}"):
-                self.load(text)
+            with self.subTest(text=text):
+                with self.assertRaises(Problem) as cm:
+                    self.load(text)
+                self.assertRegex(cm.exception.what, f"^Bad setting in {config.FILE_NAME}: .*{word}")
+                self.assertEqual(cm.exception.fix, "Fix it and save")
 
     def test_password_checked_before_file(self):
-        with mock.patch.dict(os.environ, {"PTZ_PASSWORD": ""}), \
-                self.assertRaisesRegex(SystemExit, "Set the camera password first"):
+        with mock.patch.dict(os.environ, {"PTZ_PASSWORD": ""}), self.assertRaises(Problem) as cm:
             config.load(Path("does-not-exist.toml"))
+        self.assertEqual(cm.exception.text(),
+                         'The camera password is not set. Run setx PTZ_PASSWORD "..." in a terminal.')
 
-    def test_unreadable_file_is_clean_exit(self):
-        with mock.patch.dict(os.environ, {"PTZ_PASSWORD": "pw"}), \
-                self.assertRaisesRegex(SystemExit, "Can't read settings file"):
+    def test_unreadable_file_names_it(self):
+        with mock.patch.dict(os.environ, {"PTZ_PASSWORD": "pw"}), self.assertRaises(Problem) as cm:
             config.load(Path("does-not-exist.toml"))
-
+        self.assertEqual(cm.exception.what, "Can't read does-not-exist.toml")
+        self.assertIn("does-not-exist.toml", cm.exception.detail)
 
 class EncodingTest(unittest.TestCase):
     """Notepad can save the settings file in several encodings: each loads, or the error says what to do."""
@@ -84,9 +89,10 @@ class EncodingTest(unittest.TestCase):
 
     def test_other_encoding_says_save_as_utf8(self):
         raw = '# הגדרות\nhost = "http://10.0.0.1"\n'.encode("cp1255")      # Hebrew comment saved as ANSI
-        with self.assertRaisesRegex(SystemExit, f"{config.FILE_NAME}: can't read it as text. Save it as UTF-8"):
+        with self.assertRaises(Problem) as cm:
             self.load_bytes(raw)
-
+        self.assertEqual(cm.exception.text(),
+                         f"Wrong text encoding in {config.FILE_NAME}. In Notepad: File > Save as > Encoding: UTF-8.")
 
 if __name__ == "__main__":
     unittest.main()

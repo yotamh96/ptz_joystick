@@ -3,6 +3,7 @@ Windows calls; app/tray.py feeds them events and draws the result."""
 from dataclasses import dataclass
 
 GREEN, YELLOW, RED = (0x22, 0xA0, 0x45), (0xF0, 0xB0, 0x00), (0xD0, 0x30, 0x30)
+CLICK_RESTART = "click Restart"     # the tray's restart step, after a problem that stopped the session
 
 
 @dataclass(frozen=True)
